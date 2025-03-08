@@ -1,6 +1,7 @@
 # Fear of Fire Mod - Keep Mobs on the Run! 🔥
 
 Make selected mobs flee from dangerous blocks and fearsome items! With FearFire, you can configure which entities will avoid specific blocks (like fire) or run from players holding certain items (like torches).
+
 Showcase:
 https://www.youtube-nocookie.com/embed/d8wBxqgOEog
 
