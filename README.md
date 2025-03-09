@@ -6,7 +6,8 @@ Showcase:
 https://www.youtube-nocookie.com/embed/d8wBxqgOEog
 
 # Default Configuration: firefearmod.toml
-Cow and Pig will now run away from the player holding a torch. And they will avoid places with fire, campfire, soul fire, and soul campfire.
+Most mobs will now run away from the player holding a flint and steel. And they will avoid places with fire, campfire, soul fire, and soul campfire.
+
 # 🛠 How to Configure:
 
 <details>
