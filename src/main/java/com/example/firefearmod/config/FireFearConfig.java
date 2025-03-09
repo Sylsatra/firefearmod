@@ -32,12 +32,50 @@ public class FireFearConfig {
             .build();
         data.load();
 
+        // Manually fill the list of mobs that are scared of fire.
+        // Excluded (not listed): creeper, blaze, zombified_piglin, magma_cube, ender_dragon, wither, guardian, elder_guardian,
+        // all fish (cod, salmon, tropical_fish, pufferfish), dolphin, turtle, villager, vindicator.
         if (!data.contains("fearfire.entities")) {
-            data.set("fearfire.entities", Arrays.asList("minecraft:pig", "minecraft:cow"));
+            data.set("fearfire.entities", Arrays.asList(
+                "minecraft:bat",
+                "minecraft:bee",
+                "minecraft:cat",
+                "minecraft:cow",
+                "minecraft:chicken",
+                "minecraft:donkey",
+                "minecraft:fox",
+                "minecraft:horse",
+                "minecraft:llama",
+                "minecraft:mooshroom",
+                "minecraft:mule",
+                "minecraft:parrot",
+                "minecraft:pig",
+                "minecraft:rabbit",
+                "minecraft:zombie",
+                "minecraft:skeleton",
+                "minecraft:cave_spider",
+                "minecraft:spider",
+                "minecraft:witch",
+                "minecraft:slime",
+                "minecraft:zombie_villager",
+                "minecraft:enderman",
+                "minecraft:ghast",
+                "minecraft:ravager",
+                "minecraft:evoker",
+                "minecraft:pillager",
+                "minecraft:illusioner",
+                "minecraft:wither_skeleton",
+                "minecraft:snow_golem",
+                "minecraft:polar_bear",
+                "minecraft:endermite",
+                "minecraft:squid",
+                "minecraft:glow_squid"
+            ));
         }
         data.setComment("fearfire.entities",
-                "A list of entity IDs (e.g. 'minecraft:pig') that will have the Fear AI."
-              + "\nOnly these entities will run away from blocks/items set below."
+                "A list of entity IDs (e.g. 'minecraft:pig') that will have the Fear AI.\n" +
+                "By default, every mob is scared of fire except: creeper, blaze, zombified_piglin, magma_cube, " +
+                "ender_dragon, wither, guardian, elder_guardian, all fish, dolphin, turtle, villager, and vindicator."
         );
 
         if (!data.contains("fearfire.blocks")) {
@@ -53,7 +91,7 @@ public class FireFearConfig {
         );
 
         if (!data.contains("fearfire.items")) {
-            data.set("fearfire.items", Arrays.asList("minecraft:torch"));
+            data.set("fearfire.items", Arrays.asList("minecraft:flint_and_steel"));
         }
         data.setComment("fearfire.items",
             "Any item in this list will scare the entity if a nearby player is holding it (main or off hand)."
@@ -91,8 +129,8 @@ public class FireFearConfig {
             data.set("fearfire.optimizations.blockCheckPlayerRadius", 16);
         }
         data.setComment("fearfire.optimizations.blockCheckPlayerRadius",
-            "Only check for fear blocks if there's at least one player within this radius (X,Z ±, Y ±2). "
-          + "If no player is near, we skip block checks to save CPU."
+            "Only check for fear blocks if there's at least one player within this radius (X,Z ±, Y ±2). " +
+            "If no player is near, we skip block checks to save CPU."
         );
 
         data.save();
@@ -120,7 +158,6 @@ public class FireFearConfig {
         PLAYER_CHECK_RADIUS = data.get("fearfire.optimizations.playerCheckRadius");
         PLAYER_CHECK_VERTICAL = data.get("fearfire.optimizations.playerCheckVerticalRange");
         BLOCK_CHECK_PLAYER_RADIUS = data.get("fearfire.optimizations.blockCheckPlayerRadius");
-        
 
         data.close();
 
