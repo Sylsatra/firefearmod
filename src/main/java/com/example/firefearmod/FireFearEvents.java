@@ -1,34 +1,27 @@
 package com.example.firefearmod;
 
 import com.example.firefearmod.ai.FireFearGoal;
-import com.example.firefearmod.config.FireFearConfig;
-import net.minecraft.resources.ResourceLocation;
+import com.example.firefearmod.manager.FearGroup;
+import com.example.firefearmod.manager.FearGroupManager;
 import net.minecraft.world.entity.Mob;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent; 
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.registries.ForgeRegistries;
+
+import java.util.Optional;
 
 @Mod.EventBusSubscriber(modid = "firefearmod")
 public class FireFearEvents {
 
     @SubscribeEvent
-    public static void onEntityJoinWorld(EntityJoinLevelEvent event) { 
-        if (event.getEntity() instanceof Mob mob) {
-
-            ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(mob.getType());
+    public static void onEntityJoinWorld(EntityJoinLevelEvent event) {
+        if (event.getEntity() instanceof Mob mob && !mob.level().isClientSide) {
             
-            if (entityId == null) {
-                return;
-            }
+            Optional<FearGroup> groupOpt = FearGroupManager.getGroupForMob(mob);
 
-            String entityIdStr = entityId.toString();
-
-            if (!FireFearConfig.FLEEING_ENTITIES.contains(entityIdStr)) {
-                return;
-            }
-
-            mob.goalSelector.addGoal(2, new FireFearGoal(mob, 1.2, 8));
+            groupOpt.ifPresent(group ->
+                mob.goalSelector.addGoal(5, new FireFearGoal(mob, group))
+            );
         }
     }
 }

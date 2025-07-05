@@ -1,15 +1,20 @@
 package com.example.firefearmod.ai;
 
-import com.example.firefearmod.config.FireFearConfig;
+import com.example.firefearmod.config.ConfigHolder;
+import com.example.firefearmod.manager.FearGroup;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.item.Item;
+import net.minecraft.world.entity.ai.navigation.PathNavigation;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity; // FIX: Added missing import
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.EnumSet;
@@ -17,24 +22,23 @@ import java.util.List;
 
 public class FireFearGoal extends Goal {
     private final Mob mob;
-    private final double speedModifier;
-    private final int searchRadius;
-
+    private final FearGroup fearGroup;
     private Vec3 dangerPos;
-
-    private static final double STOP_FLEE_DIST_SQ = 10 * 10;
-
     private int scanCooldown = 0;
 
-    public FireFearGoal(Mob mob, double speedModifier, int searchRadius) {
+    public FireFearGoal(Mob mob, FearGroup fearGroup) {
         this.mob = mob;
-        this.speedModifier = speedModifier;
-        this.searchRadius = searchRadius;
+        this.fearGroup = fearGroup;
         this.setFlags(EnumSet.of(Goal.Flag.MOVE));
     }
 
     @Override
     public boolean canUse() {
+        if (scanCooldown > 0) {
+            scanCooldown--;
+            return false;
+        }
+        scanCooldown = ConfigHolder.SCAN_COOLDOWN_TICKS.get();
         dangerPos = findNearestThreat();
         return dangerPos != null;
     }
@@ -42,52 +46,56 @@ public class FireFearGoal extends Goal {
     @Override
     public boolean canContinueToUse() {
         if (dangerPos == null) return false;
-        double distSqr = mob.blockPosition().distToCenterSqr(dangerPos);
-        return distSqr < STOP_FLEE_DIST_SQ;
+        double stopFleeDistSq = (fearGroup.searchRadius() + 2) * (fearGroup.searchRadius() + 2);
+        return mob.position().distanceToSqr(dangerPos) < stopFleeDistSq && hasLineOfSight(dangerPos);
+    }
+
+    @Override
+    public void start() {
     }
 
     @Override
     public void stop() {
         dangerPos = null;
-        scanCooldown = 0; 
+        mob.getNavigation().stop();
     }
 
     @Override
     public void tick() {
-        if (scanCooldown > 0) {
-            scanCooldown--;
-        } else {
-            scanCooldown = FireFearConfig.SCAN_COOLDOWN_TICKS;
-            dangerPos = findNearestThreat();
-        }
-
         if (dangerPos == null) return;
-
-        Vec3 mobPos = mob.position();
-        Vec3 fleeDir = mobPos.subtract(dangerPos).normalize();
-        Vec3 fleeTarget = mobPos.add(fleeDir.scale(5.0));
-        mob.getNavigation().moveTo(fleeTarget.x, fleeTarget.y, fleeTarget.z, speedModifier);
+        PathNavigation navigation = mob.getNavigation();
+        Vec3 fleePos = getFleePos();
+        navigation.moveTo(fleePos.x, fleePos.y, fleePos.z, fearGroup.fleeSpeed());
     }
 
+    private Vec3 getFleePos() {
+        return new Vec3(
+                mob.getX() + (mob.getX() - dangerPos.x()),
+                mob.getY(),
+                mob.getZ() + (mob.getZ() - dangerPos.z())
+        );
+    }
 
     private Vec3 findNearestThreat() {
         Level level = mob.level();
         double closestDistSqr = Double.MAX_VALUE;
         Vec3 closestThreat = null;
 
-        boolean canCheckBlocks = canCheckBlocksNow();
-
-        if (canCheckBlocks && !shouldSkipBlockCheckBecauseFireTick()) {
+        if (canCheckBlocksNow() && !shouldSkipBlockCheckBecauseFireTick()) {
             BlockPos mobPos = mob.blockPosition();
-            for (int x = -searchRadius; x <= searchRadius; x++) {
-                for (int y = -2; y <= 2; y++) {
-                    for (int z = -searchRadius; z <= searchRadius; z++) {
-                        BlockPos checkPos = mobPos.offset(x, y, z);
-                        if (isFearedBlock(level, checkPos)) {
-                            double distSqr = mobPos.distSqr(checkPos);
+            int radius = fearGroup.searchRadius();
+            for (BlockPos checkPos : BlockPos.betweenClosed(mobPos.offset(-radius, -radius / 2, -radius), mobPos.offset(radius, radius / 2, radius))) {
+                BlockState blockState = level.getBlockState(checkPos);
+                if (!blockState.isAir()) {
+                    // FIX: This entire block is now correct.
+                    BlockEntity blockEntity = blockState.hasBlockEntity() ? level.getBlockEntity(checkPos) : null;
+                    if (fearGroup.isFearedBlock(blockState, blockEntity)) {
+                        Vec3 threatPos = Vec3.atCenterOf(checkPos);
+                        if (hasLineOfSight(threatPos)) {
+                            double distSqr = mob.position().distanceToSqr(threatPos);
                             if (distSqr < closestDistSqr) {
                                 closestDistSqr = distSqr;
-                                closestThreat = Vec3.atCenterOf(checkPos);
+                                closestThreat = threatPos;
                             }
                         }
                     }
@@ -95,63 +103,39 @@ public class FireFearGoal extends Goal {
             }
         }
 
-        double px = mob.getX();
-        double py = mob.getY();
-        double pz = mob.getZ();
-        int horiz = FireFearConfig.PLAYER_CHECK_RADIUS;
-        int vert = FireFearConfig.PLAYER_CHECK_VERTICAL;
-
-        AABB playerBox = new AABB(px - horiz, py - vert, pz - horiz,
-                                  px + horiz, py + vert, pz + horiz);
-
+        AABB playerBox = mob.getBoundingBox().inflate(ConfigHolder.PLAYER_CHECK_RADIUS.get(), ConfigHolder.PLAYER_CHECK_VERTICAL.get(), ConfigHolder.PLAYER_CHECK_RADIUS.get());
         List<Player> players = level.getEntitiesOfClass(Player.class, playerBox);
-        for (Player pl : players) {
-            if (isPlayerHoldingFearedItem(pl)) {
-                double distSqr = mob.distanceToSqr(pl);
+        for (Player player : players) {
+            if (isPlayerHoldingFearedItem(player) && hasLineOfSight(player.position())) {
+                double distSqr = mob.distanceToSqr(player);
                 if (distSqr < closestDistSqr) {
                     closestDistSqr = distSqr;
-                    closestThreat = pl.position();
+                    closestThreat = player.position();
                 }
             }
         }
-
         return closestThreat;
     }
 
+    private boolean isPlayerHoldingFearedItem(Player player) {
+        return fearGroup.isFearedItem(player.getMainHandItem()) || fearGroup.isFearedItem(player.getOffhandItem());
+    }
+
+    private boolean hasLineOfSight(Vec3 target) {
+        Vec3 eyePos = mob.getEyePosition();
+        ClipContext context = new ClipContext(eyePos, target, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mob);
+        return mob.level().clip(context).getType() == BlockHitResult.Type.MISS;
+    }
 
     private boolean canCheckBlocksNow() {
-        Level level = mob.level();
-
-        double mx = mob.getX();
-        double my = mob.getY();
-        double mz = mob.getZ();
-
-        int blockCheckRadius = FireFearConfig.BLOCK_CHECK_PLAYER_RADIUS;
-        AABB nearBox = new AABB(
-            mx - blockCheckRadius, my - 2, mz - blockCheckRadius,
-            mx + blockCheckRadius, my + 2, mz + blockCheckRadius
-        );
-
-        List<Player> nearPlayers = level.getEntitiesOfClass(Player.class, nearBox);
-        return !nearPlayers.isEmpty();
+        AABB checkArea = mob.getBoundingBox().inflate(ConfigHolder.BLOCK_CHECK_PLAYER_RADIUS.get());
+        return !mob.level().getEntitiesOfClass(Player.class, checkArea).isEmpty();
     }
 
     private boolean shouldSkipBlockCheckBecauseFireTick() {
-        if (!FireFearConfig.SKIP_BLOCK_CHECK_IF_FIRE_TICK_OFF) {
+        if (!ConfigHolder.SKIP_BLOCK_CHECK_IF_FIRE_TICK_OFF.get()) {
             return false;
         }
         return !mob.level().getGameRules().getBoolean(GameRules.RULE_DOFIRETICK);
-    }
-
-    private boolean isFearedBlock(Level level, BlockPos pos) {
-        Block b = level.getBlockState(pos).getBlock();
-        return FireFearConfig.BLOCKS_TO_FEAR.contains(b);
-    }
-
-    private boolean isPlayerHoldingFearedItem(Player player) {
-        Item main = player.getMainHandItem().getItem();
-        if (FireFearConfig.ITEMS_TO_FEAR.contains(main)) return true;
-        Item off = player.getOffhandItem().getItem();
-        return FireFearConfig.ITEMS_TO_FEAR.contains(off);
     }
 }

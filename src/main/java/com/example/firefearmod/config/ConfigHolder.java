@@ -1,0 +1,339 @@
+package com.example.firefearmod.config;
+
+import com.electronwill.nightconfig.core.Config;
+import net.minecraftforge.common.ForgeConfigSpec;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+public class ConfigHolder {
+    public static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
+    public static final ForgeConfigSpec SPEC;
+
+    public static final ForgeConfigSpec.ConfigValue<List<? extends Config>> FEAR_GROUPS;
+    public static final ForgeConfigSpec.BooleanValue SKIP_BLOCK_CHECK_IF_FIRE_TICK_OFF;
+    public static final ForgeConfigSpec.IntValue SCAN_COOLDOWN_TICKS;
+    public static final ForgeConfigSpec.IntValue PLAYER_CHECK_RADIUS;
+    public static final ForgeConfigSpec.IntValue PLAYER_CHECK_VERTICAL;
+    public static final ForgeConfigSpec.IntValue BLOCK_CHECK_PLAYER_RADIUS;
+
+    static {
+        BUILDER.push("Fear Groups");
+        FEAR_GROUPS = BUILDER
+                .comment("""
+                        A list of fear groups. Each group defines a set of mobs and what they fear.
+                        Each group has:
+                         - group_id (string, required): A unique name for the group.
+                         - flee_speed (double, optional, default: 1.2): How fast mobs in this group flee.
+                         - search_radius (int, optional, default: 8): How far mobs in this group search for threats.
+                         - mobs (list, required): A list of mobs in this group. Can specify 'id' and 'nbt'.
+                         - feared_blocks (list, required): Blocks this group fears. Can specify 'id', 'states', and 'nbt' (for block entities).
+                         - feared_items (list, required): Items this group fears. Can specify 'id' and 'nbt'.
+                        """)
+                .defineList("fear_groups", new ArrayList<>(), obj -> obj instanceof Config);
+        BUILDER.pop();
+        BUILDER.push("Optimizations");
+        SKIP_BLOCK_CHECK_IF_FIRE_TICK_OFF = BUILDER.define("skipBlockCheckIfFireTickOff", true);
+        SCAN_COOLDOWN_TICKS = BUILDER.defineInRange("scanCooldownTicks", 15, 1, 200);
+        PLAYER_CHECK_RADIUS = BUILDER.defineInRange("playerCheckRadius", 8, 1, 64);
+        PLAYER_CHECK_VERTICAL = BUILDER.defineInRange("playerCheckVertical", 4, 1, 64);
+        BLOCK_CHECK_PLAYER_RADIUS = BUILDER.defineInRange("blockCheckPlayerRadius", 16, 1, 64);
+        BUILDER.pop();
+        SPEC = BUILDER.build();
+    }
+
+    public static void setDefaults() {
+        if (FEAR_GROUPS.get().isEmpty()) {
+            List<Config> defaultGroups = new ArrayList<>();
+            defaultGroups.add(createDefaultUndeadGroup());
+            defaultGroups.add(createDefaultArthropodGroup());
+            defaultGroups.add(createDefaultTeachingGroup());
+            defaultGroups.add(createDefaultPassiveGroup());
+            defaultGroups.add(createDefaultSporeGroup());
+            FEAR_GROUPS.set(defaultGroups);
+            FEAR_GROUPS.save();
+        }
+    }
+
+    private static Config createDefaultUndeadGroup() {
+        Config group = Config.inMemory();
+        group.set("group_id", "hostile_fire_fear");
+        group.set("flee_speed", 1.25);
+        group.set("search_radius", 10);
+        group.set("mobs", List.of(
+            createMobDef("minecraft:zombie"),
+            createMobDef("minecraft:skeleton"),
+            createMobDef("minecraft:husk"),
+            createMobDef("minecraft:stray"),
+            createMobDef("minecraft:zombie_villager"),
+            createMobDef("minecraft:phantom"),
+            createMobDef("minecraft:drowned"),
+            createMobDef("minecraft:piglin"),
+            createMobDef("minecraft:piglin_brute"),
+            createMobDef("minecraft:vindicator"),
+            createMobDef("minecraft:evoker"),
+            createMobDef("minecraft:illusioner"),
+            createMobDef("minecraft:ravager"),
+            createMobDef("minecraft:pillager"),
+            createMobDef("minecraft:witch"),
+            createMobDef("minecraft:vex"),
+            createMobDef("minecraft:warden"),
+            createMobDef("minecraft:wither_skeleton"),
+            createMobDef("minecraft:slime"),
+            createMobDef("minecraft:creeper")
+        ));
+        group.set("feared_blocks", List.of(
+            createFearSourceDef("minecraft:fire"),
+            createFearSourceDef("minecraft:soul_fire"),
+            createFearSourceDef("minecraft:lava"),
+            createFearSourceDef("minecraft:magma_block"),
+            createFearSourceDef("minecraft:tnt"),
+            createFearSourceDef("minecraft:end_crystal"),
+            createFearSourceDef("minecraft:tnt_minecart"),
+            createFearSourceDefWithStates("minecraft:campfire", Map.of("lit", "true")),
+            createFearSourceDefWithStates("minecraft:soul_campfire", Map.of("lit", "true"))
+        ));
+        group.set("feared_items", List.of(
+            createFearSourceDef("minecraft:flint_and_steel")
+        ));
+        return group;
+    }
+
+    private static Config createDefaultArthropodGroup() {
+        Config group = Config.inMemory();
+        group.set("group_id", "arthropod_custom_fear");
+        group.set("flee_speed", 1.3);
+        group.set("search_radius", 8);
+        group.set("mobs", List.of(
+            createMobDef("minecraft:spider"),
+            createMobDef("minecraft:cave_spider"),
+            createMobDef("minecraft:silverfish"),
+            createMobDefWithNbt("minecraft:endermite", "{PlayerSpawned:1b}")
+        ));
+        group.set("feared_blocks", List.of(
+            createFearSourceDef("minecraft:magma_block")
+        ));
+        group.set("feared_items", List.of(
+            createFearSourceDefWithNbt("minecraft:stone_sword", "{Enchantments:[{id:\"minecraft:bane_of_arthropods\"}]}")
+        ));
+        return group;
+    }
+    private static Config createDefaultTeachingGroup() {
+        Config group = Config.inMemory();
+        group.set("group_id", "teaching_example_zombies");
+        group.set("flee_speed", 2.0);
+        group.set("search_radius", 16);
+
+        group.set("mobs", List.of(
+
+            createMobDefWithNbt("minecraft:zombie", "{Silent:1b}"),
+
+            createMobDefWithCustomName("minecraft:drowned", "Patches")
+        ));
+
+        group.set("feared_blocks", List.of(
+            createFearSourceDef("minecraft:beacon"),
+
+            createFearSourceDefWithStates("minecraft:conduit", Map.of("waterlogged", "false")),
+
+            createFearSourceDefWithNbt("minecraft:spawner", "{SpawnData:{entity:{id:\"minecraft:skeleton\"}}}")
+        ));
+
+        group.set("feared_items", List.of(
+        createFearSourceDef("minecraft:golden_apple"),
+
+            createFearSourceDefWithNbt("minecraft:netherite_sword", "{Enchantments:[{id:\"minecraft:smite\"}]}"),
+
+            createFearSourceDefWithCustomName("minecraft:paper", "Exorcism Scroll")
+        ));
+
+        return group;
+    }
+
+        private static Config createDefaultPassiveGroup() {
+        Config group = Config.inMemory();
+        group.set("group_id", "scaredy_cat");
+        group.set("flee_speed", 1.3);
+        group.set("search_radius", 12);
+        group.set("mobs", List.of(
+            createMobDef("minecraft:cat"),
+            createMobDef("minecraft:chicken"),
+            createMobDef("minecraft:cod"),
+            createMobDef("minecraft:cow"),
+            createMobDef("minecraft:dolphin"),
+            createMobDef("minecraft:donkey"),
+            createMobDef("minecraft:horse"),
+            createMobDef("minecraft:mooshroom"),
+            createMobDef("minecraft:mule"),
+            createMobDef("minecraft:ocelot"),
+            createMobDef("minecraft:parrot"),
+            createMobDef("minecraft:pig"),
+            createMobDef("minecraft:rabbit"),
+            createMobDef("minecraft:salmon"),
+            createMobDef("minecraft:sheep"),
+            createMobDef("minecraft:squid"),
+            createMobDef("minecraft:tropical_fish"),
+            createMobDef("minecraft:turtle"),
+            createMobDef("minecraft:glow_squid"),
+            createMobDef("minecraft:pufferfish"),
+            createMobDef("minecraft:axolotl"),
+            createMobDef("minecraft:fox"),
+            createMobDef("minecraft:goat"),
+            createMobDef("minecraft:llama"),
+            createMobDef("minecraft:panda"),
+            createMobDef("minecraft:polar_bear"),
+            createMobDef("minecraft:bat"),
+            createMobDef("minecraft:bee"),
+            createMobDef("minecraft:villager"),
+            createMobDef("minecraft:wandering_trader"),
+            createMobDef("minecraft:trader_llama"),
+            createMobDef("minecraft:iron_golem"),
+            createMobDef("minecraft:snow_golem"),
+            createMobDef("minecraft:allay")
+        ));
+        group.set("feared_blocks", List.of(
+            createFearSourceDef("minecraft:fire"),
+            createFearSourceDef("minecraft:soul_fire"),
+            createFearSourceDef("minecraft:lava"),
+            createFearSourceDefWithStates("minecraft:campfire", Map.of("lit", "true")),
+            createFearSourceDefWithStates("minecraft:soul_campfire", Map.of("lit", "true"))
+        ));
+        group.set("feared_items", List.of(
+            createFearSourceDef("minecraft:flint_and_steel"),
+            createFearSourceDef("minecraft:wooden_sword"),
+            createFearSourceDef("minecraft:wooden_axe"),
+            createFearSourceDef("minecraft:stone_sword"),
+            createFearSourceDef("minecraft:stone_axe"),
+            createFearSourceDef("minecraft:iron_sword"),
+            createFearSourceDef("minecraft:iron_axe"),
+            createFearSourceDef("minecraft:golden_sword"),
+            createFearSourceDef("minecraft:golden_axe"),
+            createFearSourceDef("minecraft:diamond_sword"),
+            createFearSourceDef("minecraft:diamond_axe"),
+            createFearSourceDef("minecraft:netherite_sword"),
+            createFearSourceDef("minecraft:netherite_axe"),
+            createFearSourceDef("minecraft:trident"),
+            createFearSourceDef("minecraft:bow"),
+            createFearSourceDef("minecraft:crossbow")
+        ));
+        return group;
+    }
+
+        private static Config createDefaultSporeGroup() {
+        Config group = Config.inMemory();
+        group.set("group_id", "Spore_fire_fear");
+        group.set("flee_speed", 1.4);
+        group.set("search_radius", 12);
+        group.set("mobs", List.of(
+            createMobDef("spore:braiomil"),
+            createMobDef("spore:braurei"),
+            createMobDef("spore:brot"),
+            createMobDef("spore:brute"),
+            createMobDef("spore:busser"),
+            createMobDef("spore:inf_construct"),
+            createMobDef("spore:delusioner"),
+            createMobDef("spore:gastgaber"),
+            createMobDef("spore:gazenbreacher"),
+            createMobDef("spore:griefer"),
+            createMobDef("spore:hevoker"),
+            createMobDef("spore:hidenburg"),
+            createMobDef("spore:howitzer"),
+            createMobDef("spore:howler"),
+            createMobDef("spore:hvindicator"),
+            createMobDef("spore:inf_drownded"),
+            createMobDef("spore:inf_evoker"),
+            createMobDef("spore:inf_hazmat"),
+            createMobDef("spore:husk"),
+            createMobDef("spore:inf_pillager"),
+            createMobDef("spore:inf_player"),
+            createMobDef("spore:inf_villager"),
+            createMobDef("spore:inf_vindicator"),
+            createMobDef("spore:inf_wanderer"),
+            createMobDef("spore:inf_witch"),
+            createMobDef("spore:inf_human"),
+            createMobDef("spore:jagd"),
+            createMobDef("spore:knight"),
+            createMobDef("spore:lacerator"),
+            createMobDef("spore:inquisitor"),
+            createMobDef("spore:leaper"),
+            createMobDef("spore:mound"),
+            createMobDef("spore:nuclea"),
+            createMobDef("spore:ogre"),
+            createMobDef("spore:plagued"),
+            createMobDef("spore:proto"),
+            createMobDef("spore:reconstructor"),
+            createMobDef("spore:scamper"),
+            createMobDef("spore:scavenger"),
+            createMobDef("spore:scent"),
+            createMobDef("spore:sieger"),
+            createMobDef("spore:specter"),
+            createMobDef("spore:spitter"),
+            createMobDef("spore:stalker"),
+            createMobDef("spore:thorn"),
+            createMobDef("spore:umarmed"),
+            createMobDef("spore:usurper"),
+            createMobDef("spore:verva"),
+            createMobDef("spore:vigil"),
+            createMobDef("spore:volatile"),
+            createMobDef("spore:wendigo")
+        ));
+        group.set("feared_blocks", List.of(
+            createFearSourceDef("minecraft:fire"),
+            createFearSourceDef("minecraft:soul_fire"),
+            createFearSourceDef("minecraft:lava"),
+            createFearSourceDef("minecraft:magma_block"),
+            createFearSourceDef("minecraft:tnt"),
+            createFearSourceDef("minecraft:end_crystal"),
+            createFearSourceDef("minecraft:tnt_minecart"),
+            createFearSourceDefWithStates("minecraft:campfire", Map.of("lit", "true")),
+            createFearSourceDefWithStates("minecraft:soul_campfire", Map.of("lit", "true"))
+        ));
+        group.set("feared_items", List.of(
+            createFearSourceDef("minecraft:flint_and_steel")
+        ));
+        return group;
+    }
+
+    private static Config createMobDef(String id) {
+        Config table = Config.inMemory();
+        table.set("id", id);
+        return table;
+    }
+
+    private static Config createMobDefWithNbt(String id, String nbt) {
+        Config table = createMobDef(id);
+        table.set("nbt", nbt);
+        return table;
+    }
+
+    private static Config createFearSourceDef(String id) {
+        Config table = Config.inMemory();
+        table.set("id", id);
+        return table;
+    }
+
+    private static Config createFearSourceDefWithNbt(String id, String nbt) {
+        Config table = createFearSourceDef(id);
+        table.set("nbt", nbt);
+        return table;
+    }
+
+    private static Config createFearSourceDefWithStates(String id, Map<String, String> states) {
+        Config table = Config.inMemory();
+        table.set("id", id);
+        Config statesTable = table.createSubConfig();
+        states.forEach(statesTable::set);
+        table.set("states", statesTable);
+        return table;
+    }
+    private static Config createMobDefWithCustomName(String id, String name) {
+        Config table = createMobDef(id);
+        table.set("custom_name", name);
+        return table;
+    }
+    private static Config createFearSourceDefWithCustomName(String id, String name) {
+        Config table = createFearSourceDef(id);
+        table.set("custom_name", name);
+        return table;
+    }
+}
