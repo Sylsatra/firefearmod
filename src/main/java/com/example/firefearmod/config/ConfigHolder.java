@@ -16,6 +16,7 @@ public class ConfigHolder {
     public static final ForgeConfigSpec.IntValue PLAYER_CHECK_RADIUS;
     public static final ForgeConfigSpec.IntValue PLAYER_CHECK_VERTICAL;
     public static final ForgeConfigSpec.IntValue BLOCK_CHECK_PLAYER_RADIUS;
+    public static final ForgeConfigSpec.IntValue LIGHT_CHECK_COOLDOWN_TICKS;
 
     static {
         BUILDER.push("Fear Groups");
@@ -29,6 +30,13 @@ public class ConfigHolder {
                          - mobs (list, required): A list of mobs in this group. Can specify 'id' and 'nbt'.
                          - feared_blocks (list, required): Blocks this group fears. Can specify 'id', 'states', and 'nbt' (for block entities).
                          - feared_items (list, required): Items this group fears. Can specify 'id' and 'nbt'.
+                         - light_fear (object, optional): Per-group light level avoidance config. When omitted or disabled, light fear is off.
+                           Fields:
+                             - enabled (boolean, default: false)
+                             - mode (string, default: "ABOVE"): "ABOVE" to avoid bright areas where brightness >= threshold, or "BELOW" to avoid where brightness <= threshold
+                             - threshold (int, default: 11): Light threshold in [0, 15]
+                             - layer (string, default: "COMBINED"): "COMBINED" brightness (works indoors/outdoors), or "BLOCK"/"SKY"
+                             - hysteresis (int, optional, default: 1): Margin to prevent jitter when entering/leaving boundary
                         """)
                 .defineList("fear_groups", new ArrayList<>(), obj -> obj instanceof Config);
         BUILDER.pop();
@@ -38,6 +46,7 @@ public class ConfigHolder {
         PLAYER_CHECK_RADIUS = BUILDER.defineInRange("playerCheckRadius", 8, 1, 64);
         PLAYER_CHECK_VERTICAL = BUILDER.defineInRange("playerCheckVertical", 4, 1, 64);
         BLOCK_CHECK_PLAYER_RADIUS = BUILDER.defineInRange("blockCheckPlayerRadius", 16, 1, 64);
+        LIGHT_CHECK_COOLDOWN_TICKS = BUILDER.defineInRange("lightCheckCooldownTicks", 20, 1, 200);
         BUILDER.pop();
         SPEC = BUILDER.build();
     }
@@ -48,6 +57,7 @@ public class ConfigHolder {
             defaultGroups.add(createDefaultUndeadGroup());
             defaultGroups.add(createDefaultArthropodGroup());
             defaultGroups.add(createDefaultTeachingGroup());
+            defaultGroups.add(createDefaultVillagerLowLightGroup());
             defaultGroups.add(createDefaultPassiveGroup());
             defaultGroups.add(createDefaultSporeGroup());
             FEAR_GROUPS.set(defaultGroups);
@@ -58,7 +68,7 @@ public class ConfigHolder {
     private static Config createDefaultUndeadGroup() {
         Config group = Config.inMemory();
         group.set("group_id", "hostile_fire_fear");
-        group.set("flee_speed", 1.25);
+        group.set("flee_speed", 1.15);
         group.set("search_radius", 10);
         group.set("mobs", List.of(
             createMobDef("minecraft:zombie"),
@@ -99,10 +109,31 @@ public class ConfigHolder {
         return group;
     }
 
+    private static Config createDefaultVillagerLowLightGroup() {
+        Config group = Config.inMemory();
+        group.set("group_id", "villager_low_light_fear");
+        group.set("flee_speed", 1.05);
+        group.set("search_radius", 12);
+        group.set("mobs", List.of(
+            createMobDef("minecraft:villager")
+        ));
+        group.set("feared_blocks", List.of());
+        group.set("feared_items", List.of());
+
+        Config lf = group.createSubConfig();
+        lf.set("enabled", true);
+        lf.set("mode", "BELOW");
+        lf.set("threshold", 6);     
+        lf.set("layer", "COMBINED");
+        lf.set("hysteresis", 2);
+        group.set("light_fear", lf);
+        return group;
+    }
+
     private static Config createDefaultArthropodGroup() {
         Config group = Config.inMemory();
         group.set("group_id", "arthropod_custom_fear");
-        group.set("flee_speed", 1.3);
+        group.set("flee_speed", 1.2);
         group.set("search_radius", 8);
         group.set("mobs", List.of(
             createMobDef("minecraft:spider"),
@@ -153,7 +184,7 @@ public class ConfigHolder {
         private static Config createDefaultPassiveGroup() {
         Config group = Config.inMemory();
         group.set("group_id", "scaredy_cat");
-        group.set("flee_speed", 1.3);
+        group.set("flee_speed", 1.25);
         group.set("search_radius", 12);
         group.set("mobs", List.of(
             createMobDef("minecraft:cat"),
@@ -222,7 +253,7 @@ public class ConfigHolder {
         private static Config createDefaultSporeGroup() {
         Config group = Config.inMemory();
         group.set("group_id", "Spore_fire_fear");
-        group.set("flee_speed", 1.4);
+        group.set("flee_speed", 1.2);
         group.set("search_radius", 12);
         group.set("mobs", List.of(
             createMobDef("spore:braiomil"),

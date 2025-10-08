@@ -1,6 +1,7 @@
 package com.example.firefearmod;
 
 import com.example.firefearmod.ai.FireFearGoal;
+import com.example.firefearmod.ai.LightFearGoal;
 import com.example.firefearmod.manager.FearGroup;
 import com.example.firefearmod.manager.FearGroupManager;
 import net.minecraft.world.entity.Mob;
@@ -19,9 +20,12 @@ public class FireFearEvents {
             
             Optional<FearGroup> groupOpt = FearGroupManager.getGroupForMob(mob);
 
-            groupOpt.ifPresent(group ->
-                mob.goalSelector.addGoal(5, new FireFearGoal(mob, group))
-            );
+            groupOpt.ifPresent(group -> {
+                if (FearGroupManager.isLightFearEnabledForGroup(group)) {
+                    mob.goalSelector.addGoal(5, new LightFearGoal(mob, group));
+                }
+                mob.goalSelector.addGoal(4, new FireFearGoal(mob, group));
+            });
         }
     }
 }
