@@ -1,12 +1,16 @@
 package com.example.firefearmod.manager;
 
 import com.electronwill.nightconfig.core.Config;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
@@ -100,9 +104,15 @@ public record FearGroup(
         }
     }
 
-    public record FearSourceDefinition(ResourceLocation id, @Nullable String customName, @Nullable Config states, @Nullable CompoundTag nbt) {
+    public record FearSourceDefinition(ResourceLocation id, boolean isTag, @Nullable String customName, @Nullable Config states, @Nullable CompoundTag nbt) {
         public static FearSourceDefinition fromConfig(Config config) {
-            ResourceLocation id = new ResourceLocation((String)config.get("id"));
+            String raw = (String) config.get("id");
+            boolean isTag = false;
+            if (raw.startsWith("#")) {
+                isTag = true;
+                raw = raw.substring(1);
+            }
+            ResourceLocation id = new ResourceLocation(raw);
             String customName = config.getOptional("custom_name").map(String::valueOf).orElse(null);
             Config states = config.getOptional("states").map(o -> (Config) o).orElse(null);
             CompoundTag nbt = config.getOptional("nbt").map(nbtStr -> {
@@ -110,12 +120,17 @@ public record FearGroup(
                     return TagParser.parseTag((String) nbtStr);
                 } catch (Exception e) { throw new IllegalArgumentException("Invalid NBT: " + e.getMessage()); }
             }).orElse(null);
-            return new FearSourceDefinition(id, customName, states, nbt);
+            return new FearSourceDefinition(id, isTag, customName, states, nbt);
         }
         
         public boolean matches(ResourceLocation targetId, @Nullable BlockState blockState, @Nullable BlockEntity blockEntity, @Nullable ItemStack itemStack) {
-            if (!this.id.equals(targetId)) return false;
             if (blockState != null) {
+                if (this.isTag) {
+                    TagKey<Block> tagKey = TagKey.create(Registries.BLOCK, this.id);
+                    if (!blockState.is(tagKey)) return false;
+                } else {
+                    if (!this.id.equals(targetId)) return false;
+                }
                 if (states != null) {
                     for (Config.Entry entry : states.entrySet()) {
                         String key = entry.getKey();
@@ -134,6 +149,12 @@ public record FearGroup(
                 return true;
             }
             if (itemStack != null) {
+                if (this.isTag) {
+                    TagKey<Item> tagKey = TagKey.create(Registries.ITEM, this.id);
+                    if (!itemStack.is(tagKey)) return false;
+                } else {
+                    if (!this.id.equals(targetId)) return false;
+                }
                 if (this.customName != null && (!itemStack.hasCustomHoverName() || !itemStack.getHoverName().getString().equals(this.customName))) return false;
                 if (this.nbt != null) {
                     CompoundTag itemNbt = itemStack.getTag();
