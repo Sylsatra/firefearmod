@@ -4,6 +4,7 @@ import com.example.firefearmod.config.ConfigHolder;
 import com.example.firefearmod.manager.FearGroup;
 import com.example.firefearmod.manager.FearGroupManager;
 import com.example.firefearmod.manager.LightFear;
+import com.example.firefearmod.util.VisionHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -24,6 +25,7 @@ public class LightFearGoal extends Goal {
     private int scanCooldown;
     private long lastRepathGameTime;
     private int lastTargetBrightness;
+    private Vec3 violationPos;
 
     public LightFearGoal(Mob mob, FearGroup group) {
         this.mob = mob;
@@ -36,8 +38,11 @@ public class LightFearGoal extends Goal {
     public boolean canUse() {
         if (!lightFear.enabled()) return false;
         Level level = mob.level();
-        if (!lightFear.isViolation(level, mob.blockPosition())) return false;
         if (scanCooldown > 0) { scanCooldown--; return false; }
+        violationPos = findVisibleViolation();
+        if (violationPos == null) {
+            return false;
+        }
         targetPos = findSafeTarget();
         scanCooldown = ConfigHolder.LIGHT_CHECK_COOLDOWN_TICKS.get();
         lastRepathGameTime = level.getGameTime();
@@ -53,6 +58,12 @@ public class LightFearGoal extends Goal {
         if (targetPos == null) return false;
         Level level = mob.level();
         boolean safeHere = lightFear.isSafe(level, mob.blockPosition());
+        if (violationPos != null && !VisionHelper.canSeePosition(mob, violationPos, true)) {
+            violationPos = findVisibleViolation();
+            if (violationPos == null) {
+                return false;
+            }
+        }
         if (!safeHere) return true;
         double dist2 = Vec3.atCenterOf(targetPos).distanceToSqr(mob.position());
         return dist2 > 1.44; 
@@ -68,6 +79,13 @@ public class LightFearGoal extends Goal {
         if (targetPos == null) return;
         PathNavigation nav = mob.getNavigation();
         long now = mob.level().getGameTime();
+        if (violationPos == null || !VisionHelper.canSeePosition(mob, violationPos, true)) {
+            violationPos = findVisibleViolation();
+            if (violationPos == null) {
+                stop();
+                return;
+            }
+        }
         if (now - lastRepathGameTime >= ConfigHolder.LIGHT_CHECK_COOLDOWN_TICKS.get()) {
             if (nav.isDone() || !lightFear.isSafe(mob.level(), targetPos)) {
                 BlockPos newTarget = findSafeTarget();
@@ -84,6 +102,7 @@ public class LightFearGoal extends Goal {
     @Override
     public void stop() {
         targetPos = null;
+        violationPos = null;
         mob.getNavigation().stop();
     }
 
@@ -165,5 +184,31 @@ public class LightFearGoal extends Goal {
             }
         }
         return bestSafe != null ? bestSafe : bestFallback;
+    }
+
+    private Vec3 findVisibleViolation() {
+        Level level = mob.level();
+        BlockPos origin = mob.blockPosition();
+        int radius = Math.max(2, group.searchRadius());
+        int vRange = Math.max(1, radius / 2);
+        double bestDist = Double.MAX_VALUE;
+        Vec3 best = null;
+
+        for (BlockPos pos : BlockPos.betweenClosed(origin.offset(-radius, -vRange, -radius), origin.offset(radius, vRange, radius))) {
+            if (!lightFear.isViolation(level, pos)) {
+                continue;
+            }
+            Vec3 center = Vec3.atCenterOf(pos);
+            if (!VisionHelper.canSeePosition(mob, center, true)) {
+                continue;
+            }
+            double dist = center.distanceToSqr(mob.position());
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = center;
+            }
+        }
+
+        return best;
     }
 }

@@ -7,6 +7,8 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -71,6 +73,22 @@ public record FearGroup(
         if (itemId == null) return false;
         for (FearSourceDefinition def : fearedItems) {
             if (def.matches(itemId, null, null, stack)) { return true; }
+        }
+        return false;
+    }
+
+    public boolean hasFearedEntities() {
+        for (FearSourceDefinition def : fearedBlocks) {
+            if (def.canMatchEntity()) { return true; }
+        }
+        return false;
+    }
+
+    public boolean isFearedEntity(Entity entity) {
+        ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+        if (entityId == null) return false;
+        for (FearSourceDefinition def : fearedBlocks) {
+            if (def.matchesEntity(entityId, entity)) { return true; }
         }
         return false;
     }
@@ -163,6 +181,34 @@ public record FearGroup(
                 return true;
             }
             return false;
+        }
+
+        public boolean matchesEntity(ResourceLocation targetId, Entity entity) {
+            if (!canMatchEntity()) {
+                return false;
+            }
+            if (this.isTag) {
+                TagKey<EntityType<?>> tagKey = TagKey.create(Registries.ENTITY_TYPE, this.id);
+                if (!entity.getType().is(tagKey)) return false;
+            } else {
+                if (!this.id.equals(targetId)) return false;
+            }
+            if (this.customName != null) {
+                if (!entity.hasCustomName() || !entity.getCustomName().getString().equals(this.customName)) return false;
+            }
+            if (this.nbt != null) {
+                CompoundTag entityNbt = new CompoundTag();
+                entity.saveWithoutId(entityNbt);
+                if (!NbtUtils.compareNbt(this.nbt, entityNbt, true)) return false;
+            }
+            return true;
+        }
+
+        public boolean canMatchEntity() {
+            if (this.isTag) {
+                return true;
+            }
+            return ForgeRegistries.ENTITY_TYPES.containsKey(this.id);
         }
     }
 }

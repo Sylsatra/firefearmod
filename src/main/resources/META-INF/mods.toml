@@ -4,7 +4,7 @@ license="GPL-3.0-only"
 
 [[mods]]
 modId="firefearmod"
-version="2.0.2"
+version="2.0.3"
 displayName="Fear of Fire Mod"
 authors="Sylsatra"
 description='''A mod to make mobs scared of fire.'''
