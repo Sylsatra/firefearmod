@@ -10,6 +10,7 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -29,7 +30,8 @@ public record FearGroup(
         int searchRadius,
         List<MobDefinition> mobs,
         List<FearSourceDefinition> fearedBlocks,
-        List<FearSourceDefinition> fearedItems
+        List<FearSourceDefinition> fearedItems,
+        List<FearedEntityDefinition> fearedEntities
 ) {
 
     public static FearGroup fromConfig(Config config) {
@@ -42,7 +44,11 @@ public record FearGroup(
                 .map(FearSourceDefinition::fromConfig).collect(Collectors.toList());
         List<FearSourceDefinition> fearedItems = ((List<Config>) config.get("feared_items")).stream()
                 .map(FearSourceDefinition::fromConfig).collect(Collectors.toList());
-        return new FearGroup(groupId, fleeSpeed, searchRadius, mobs, fearedBlocks, fearedItems);
+        List<FearedEntityDefinition> fearedEntities = config.getOptional("feared_entities")
+                .map(o -> (List<Config>) o)
+                .map(list -> list.stream().map(FearedEntityDefinition::fromConfig).collect(Collectors.toList()))
+                .orElse(List.of());
+        return new FearGroup(groupId, fleeSpeed, searchRadius, mobs, fearedBlocks, fearedItems, fearedEntities);
     }
 
     public int getMatchScore(Mob mob) {
@@ -58,37 +64,66 @@ public record FearGroup(
         return bestScore;
     }
     
-    public boolean isFearedBlock(BlockState blockState, @Nullable BlockEntity blockEntity) {
+    @Nullable
+    public FearSourceDefinition findFearedBlock(BlockState blockState, @Nullable BlockEntity blockEntity) {
         ResourceLocation blockId = ForgeRegistries.BLOCKS.getKey(blockState.getBlock());
-        if (blockId == null) return false;
+        if (blockId == null) return null;
         for (FearSourceDefinition def : fearedBlocks) {
-            if (def.matches(blockId, blockState, blockEntity, null)) { return true; }
+            if (def.matches(blockId, blockState, blockEntity, null)) { return def; }
         }
-        return false;
+        return null;
     }
 
-    public boolean isFearedItem(ItemStack stack) {
-        if (stack.isEmpty()) return false;
+    @Nullable
+    public FearSourceDefinition findFearedItem(ItemStack stack) {
+        if (stack.isEmpty()) return null;
         ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
-        if (itemId == null) return false;
+        if (itemId == null) return null;
         for (FearSourceDefinition def : fearedItems) {
-            if (def.matches(itemId, null, null, stack)) { return true; }
+            if (def.matches(itemId, null, null, stack)) { return def; }
         }
-        return false;
+        return null;
     }
 
     public boolean hasFearedEntities() {
+        if (!fearedEntities.isEmpty()) {
+            return true;
+        }
         for (FearSourceDefinition def : fearedBlocks) {
             if (def.canMatchEntity()) { return true; }
         }
         return false;
     }
 
+    public boolean shouldOverrideHostility(BlockState blockState, @Nullable BlockEntity blockEntity) {
+        FearSourceDefinition def = findFearedBlock(blockState, blockEntity);
+        return def != null && def.fearOverride();
+    }
+
+    public boolean shouldOverrideHostility(ItemStack stack) {
+        FearSourceDefinition def = findFearedItem(stack);
+        return def != null && def.fearOverride();
+    }
+
     public boolean isFearedEntity(Entity entity) {
         ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
         if (entityId == null) return false;
+        for (FearedEntityDefinition def : fearedEntities) {
+            if (def.matches(entityId, entity)) { return true; }
+        }
         for (FearSourceDefinition def : fearedBlocks) {
             if (def.matchesEntity(entityId, entity)) { return true; }
+        }
+        return false;
+    }
+
+    public boolean shouldOverrideHostility(Entity entity) {
+        ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+        if (entityId == null) return false;
+        for (FearedEntityDefinition def : fearedEntities) {
+            if (def.matches(entityId, entity)) {
+                return def.overrideHostility();
+            }
         }
         return false;
     }
@@ -122,7 +157,7 @@ public record FearGroup(
         }
     }
 
-    public record FearSourceDefinition(ResourceLocation id, boolean isTag, @Nullable String customName, @Nullable Config states, @Nullable CompoundTag nbt) {
+    public record FearSourceDefinition(ResourceLocation id, boolean isTag, @Nullable String customName, @Nullable Config states, @Nullable CompoundTag nbt, boolean fearOverride) {
         public static FearSourceDefinition fromConfig(Config config) {
             String raw = (String) config.get("id");
             boolean isTag = false;
@@ -138,7 +173,8 @@ public record FearGroup(
                     return TagParser.parseTag((String) nbtStr);
                 } catch (Exception e) { throw new IllegalArgumentException("Invalid NBT: " + e.getMessage()); }
             }).orElse(null);
-            return new FearSourceDefinition(id, isTag, customName, states, nbt);
+            boolean fearOverride = config.getOptional("fear_override").map(o -> (Boolean) o).orElse(false);
+            return new FearSourceDefinition(id, isTag, customName, states, nbt, fearOverride);
         }
         
         public boolean matches(ResourceLocation targetId, @Nullable BlockState blockState, @Nullable BlockEntity blockEntity, @Nullable ItemStack itemStack) {
@@ -194,7 +230,15 @@ public record FearGroup(
                 if (!this.id.equals(targetId)) return false;
             }
             if (this.customName != null) {
-                if (!entity.hasCustomName() || !entity.getCustomName().getString().equals(this.customName)) return false;
+                if (entity instanceof Player player) {
+                    String playerName = player.getScoreboardName();
+                    String displayName = player.getName().getString();
+                    if (!this.customName.equals(playerName) && !this.customName.equals(displayName)) {
+                        return false;
+                    }
+                } else {
+                    if (!entity.hasCustomName() || !entity.getCustomName().getString().equals(this.customName)) return false;
+                }
             }
             if (this.nbt != null) {
                 CompoundTag entityNbt = new CompoundTag();
@@ -209,6 +253,18 @@ public record FearGroup(
                 return true;
             }
             return ForgeRegistries.ENTITY_TYPES.containsKey(this.id);
+        }
+    }
+
+    public record FearedEntityDefinition(FearSourceDefinition source, boolean overrideHostility) {
+        public static FearedEntityDefinition fromConfig(Config config) {
+            FearSourceDefinition src = FearSourceDefinition.fromConfig(config);
+            boolean override = config.getOptional("fear_override").map(o -> (Boolean) o).orElse(false);
+            return new FearedEntityDefinition(src, override);
+        }
+
+        public boolean matches(ResourceLocation entityId, Entity entity) {
+            return source.matchesEntity(entityId, entity);
         }
     }
 }

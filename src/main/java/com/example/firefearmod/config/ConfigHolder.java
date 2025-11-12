@@ -2,14 +2,18 @@ package com.example.firefearmod.config;
 
 import com.electronwill.nightconfig.core.Config;
 import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.config.ModConfig;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class ConfigHolder {
     public static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
     public static final ForgeConfigSpec SPEC;
 
+    public static final ForgeConfigSpec.ConfigValue<String> CONFIG_SCHEMA_VERSION;
     public static final ForgeConfigSpec.ConfigValue<List<? extends Config>> FEAR_GROUPS;
     public static final ForgeConfigSpec.BooleanValue SKIP_BLOCK_CHECK_IF_FIRE_TICK_OFF;
     public static final ForgeConfigSpec.IntValue SCAN_COOLDOWN_TICKS;
@@ -18,7 +22,12 @@ public class ConfigHolder {
     public static final ForgeConfigSpec.IntValue BLOCK_CHECK_PLAYER_RADIUS;
     public static final ForgeConfigSpec.IntValue LIGHT_CHECK_COOLDOWN_TICKS;
 
+    private static String targetSchemaVersion = "";
+
     static {
+        CONFIG_SCHEMA_VERSION = BUILDER
+                .comment("Tracks the mod version that last migrated this config. Do not edit manually unless you know what you are doing.")
+                .define("config_schema_version", "");
         BUILDER.push("Fear Groups");
         FEAR_GROUPS = BUILDER
                 .comment("""
@@ -28,8 +37,9 @@ public class ConfigHolder {
                          - flee_speed (double, optional, default: 1.2): How fast mobs in this group flee.
                          - search_radius (int, optional, default: 8): How far mobs in this group search for threats.
                          - mobs (list, required): A list of mobs in this group. Can specify 'id' and 'nbt'.
-                         - feared_blocks (list, required): Blocks this group fears. Can specify 'id', 'states', and 'nbt' (for block entities).
-                         - feared_items (list, required): Items this group fears. Can specify 'id' and 'nbt'.
+                         - feared_blocks (list, required): Blocks this group fears. Can specify 'id', 'states', 'nbt' (for block entities), and 'fear_override' (boolean).
+                         - feared_items (list, required): Items this group fears. Can specify 'id', 'nbt', and 'fear_override' (boolean).
+                         - feared_entities (list, optional): Entities this group fears. Supports 'id', 'nbt', 'custom_name', and 'fear_override' (boolean, default: false) to override hostility when visible.
                          - light_fear (object, optional): Per-group light level avoidance config. When omitted or disabled, light fear is off.
                            Fields:
                              - enabled (boolean, default: false)
@@ -176,6 +186,13 @@ public class ConfigHolder {
             createFearSourceDefWithNbt("minecraft:netherite_sword", "{Enchantments:[{id:\"minecraft:smite\"}]}"),
 
             createFearSourceDefWithCustomName("minecraft:paper", "Exorcism Scroll")
+        ));
+
+        group.set("feared_entities", List.of(
+            createFearedEntityDefWithOverride("minecraft:wolf"),
+            createFearedEntityDefWithNbt("minecraft:endermite", "{PlayerSpawned:1b}", false),
+            createFearedEntityDef("#minecraft:skeletons"),
+            createProfessorFearEntity()
         ));
 
         return group;
@@ -357,14 +374,100 @@ public class ConfigHolder {
         table.set("states", statesTable);
         return table;
     }
+
+    private static Config createFearSourceDefWithCustomName(String id, String name) {
+        Config table = createFearSourceDef(id);
+        table.set("custom_name", name);
+        return table;
+    }
+
     private static Config createMobDefWithCustomName(String id, String name) {
         Config table = createMobDef(id);
         table.set("custom_name", name);
         return table;
     }
-    private static Config createFearSourceDefWithCustomName(String id, String name) {
-        Config table = createFearSourceDef(id);
-        table.set("custom_name", name);
+
+    private static Config createFearedEntityDef(String id) {
+        Config table = Config.inMemory();
+        table.set("id", id);
         return table;
+    }
+
+    private static Config createFearedEntityDefWithOverride(String id) {
+        Config table = createFearedEntityDef(id);
+        table.set("fear_override", true);
+        return table;
+    }
+
+    private static Config createFearedEntityDefWithCustomName(String id, String name, boolean fearOverride) {
+        Config table = createFearedEntityDef(id);
+        table.set("custom_name", name);
+        if (fearOverride) {
+            table.set("fear_override", true);
+        }
+        return table;
+    }
+
+    private static Config createFearedEntityDefWithNbt(String id, String nbt, boolean fearOverride) {
+        Config table = createFearedEntityDef(id);
+        table.set("nbt", nbt);
+        if (fearOverride) {
+            table.set("fear_override", true);
+        }
+        return table;
+    }
+
+    private static Config createProfessorFearEntity() {
+        Config table = createFearedEntityDefWithCustomName("minecraft:player", "Professor Fear", true);
+        table.set("nbt", "{Tags:[\"fear_trainer\"]}");
+        return table;
+    }
+
+    public static void setTargetSchemaVersion(String version) {
+        targetSchemaVersion = Objects.requireNonNullElse(version, "");
+    }
+
+    public static void onConfigReload(ModConfig config) {
+        if (config.getSpec() != SPEC) {
+            return;
+        }
+        setDefaults();
+        migrateIfNeeded();
+    }
+
+    private static void migrateIfNeeded() {
+        String desiredVersion = targetSchemaVersion == null ? "" : targetSchemaVersion;
+        String storedVersion = CONFIG_SCHEMA_VERSION.get();
+        if (Objects.equals(storedVersion, desiredVersion)) {
+            return;
+        }
+
+        boolean updatedTeachingGroup = updateTeachingExampleGroup();
+
+        CONFIG_SCHEMA_VERSION.set(desiredVersion);
+        CONFIG_SCHEMA_VERSION.save();
+        if (updatedTeachingGroup) {
+            FEAR_GROUPS.save();
+        }
+    }
+
+    private static boolean updateTeachingExampleGroup() {
+        boolean changed = false;
+        List<? extends Config> groups = FEAR_GROUPS.get();
+        for (Config group : groups) {
+            String id = Objects.toString(group.get("group_id"), "");
+            if (!"teaching_example_zombies".equals(id)) {
+                continue;
+            }
+            group.set("feared_entities", List.of(
+                    createFearedEntityDefWithOverride("minecraft:wolf"),
+                    createFearedEntityDefWithNbt("minecraft:endermite", "{PlayerSpawned:1b}", false),
+                    createFearedEntityDef("#minecraft:skeletons"),
+                    createProfessorFearEntity()
+            ));
+            changed = true;
+            break;
+        }
+        return changed;
     }
 }

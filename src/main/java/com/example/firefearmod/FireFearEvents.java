@@ -22,9 +22,9 @@ public class FireFearEvents {
 
             groupOpt.ifPresent(group -> {
                 if (FearGroupManager.isLightFearEnabledForGroup(group)) {
-                    mob.goalSelector.addGoal(5, new LightFearGoal(mob, group));
+                    mob.goalSelector.addGoal(4, new LightFearGoal(mob, group));
                 }
-                mob.goalSelector.addGoal(4, new FireFearGoal(mob, group));
+                mob.goalSelector.addGoal(0, new FireFearGoal(mob, group));
             });
         }
     }

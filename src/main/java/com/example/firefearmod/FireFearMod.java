@@ -10,13 +10,16 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
 @Mod("firefearmod")
 public class FireFearMod {
+    private static final String MOD_VERSION = ModLoadingContext.get().getActiveContainer().getModInfo().getVersion().toString();
+
     public FireFearMod() {
+        ConfigHolder.setTargetSchemaVersion(MOD_VERSION);
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onConfigLoad);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, ConfigHolder.SPEC, "firefearmod-common.toml");
     }
 
     public void onConfigLoad(final ModConfigEvent event) {
-        ConfigHolder.setDefaults();
+        ConfigHolder.onConfigReload(event.getConfig());
         FearGroupManager.reload();
     }
 }
