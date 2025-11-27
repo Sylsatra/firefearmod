@@ -21,6 +21,8 @@ public class ConfigHolder {
     public static final ForgeConfigSpec.IntValue PLAYER_CHECK_VERTICAL;
     public static final ForgeConfigSpec.IntValue BLOCK_CHECK_PLAYER_RADIUS;
     public static final ForgeConfigSpec.IntValue LIGHT_CHECK_COOLDOWN_TICKS;
+    public static final ForgeConfigSpec.BooleanValue INTERGENERATIONAL_TRAUMA_ENABLED;
+    public static final ForgeConfigSpec.IntValue MAX_TRAUMA_STAGES_PER_GROUP;
 
     private static String targetSchemaVersion = "";
 
@@ -57,6 +59,10 @@ public class ConfigHolder {
         PLAYER_CHECK_VERTICAL = BUILDER.defineInRange("playerCheckVertical", 4, 1, 64);
         BLOCK_CHECK_PLAYER_RADIUS = BUILDER.defineInRange("blockCheckPlayerRadius", 16, 1, 64);
         LIGHT_CHECK_COOLDOWN_TICKS = BUILDER.defineInRange("lightCheckCooldownTicks", 20, 1, 200);
+        BUILDER.pop();
+        BUILDER.push("IntergenerationalTrauma");
+        INTERGENERATIONAL_TRAUMA_ENABLED = BUILDER.define("intergenerationalTraumaEnabled", false);
+        MAX_TRAUMA_STAGES_PER_GROUP = BUILDER.defineInRange("maxTraumaStagesPerGroup", 3, 1, 32);
         BUILDER.pop();
         SPEC = BUILDER.build();
     }

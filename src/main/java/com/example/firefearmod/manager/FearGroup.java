@@ -21,6 +21,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -32,7 +33,7 @@ public record FearGroup(
         List<FearSourceDefinition> fearedBlocks,
         List<FearSourceDefinition> fearedItems,
         List<FearedEntityDefinition> fearedEntities
-) {
+) implements IFearProfile {
 
     public static FearGroup fromConfig(Config config) {
         String groupId = config.get("group_id");
@@ -126,6 +127,20 @@ public record FearGroup(
             }
         }
         return false;
+    }
+
+    @Override
+    public IFearProfile.VisibilityMode getEntityVisibilityMode(Entity entity) {
+        ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+        if (entityId == null) {
+            return IFearProfile.VisibilityMode.LOOK_BASED;
+        }
+        for (FearedEntityDefinition def : fearedEntities) {
+            if (def.matches(entityId, entity)) {
+                return def.visibilityMode();
+            }
+        }
+        return IFearProfile.VisibilityMode.LOOK_BASED;
     }
 
     public record MobDefinition(ResourceLocation id, @Nullable String customName, @Nullable CompoundTag nbt) {
@@ -256,11 +271,18 @@ public record FearGroup(
         }
     }
 
-    public record FearedEntityDefinition(FearSourceDefinition source, boolean overrideHostility) {
+    public record FearedEntityDefinition(FearSourceDefinition source, boolean overrideHostility, IFearProfile.VisibilityMode visibilityMode) {
         public static FearedEntityDefinition fromConfig(Config config) {
             FearSourceDefinition src = FearSourceDefinition.fromConfig(config);
             boolean override = config.getOptional("fear_override").map(o -> (Boolean) o).orElse(false);
-            return new FearedEntityDefinition(src, override);
+            String modeStr = config.getOptional("visibility_mode").map(String::valueOf).orElse("LOOK_BASED");
+            IFearProfile.VisibilityMode mode;
+            try {
+                mode = IFearProfile.VisibilityMode.valueOf(modeStr.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                mode = IFearProfile.VisibilityMode.LOOK_BASED;
+            }
+            return new FearedEntityDefinition(src, override, mode);
         }
 
         public boolean matches(ResourceLocation entityId, Entity entity) {

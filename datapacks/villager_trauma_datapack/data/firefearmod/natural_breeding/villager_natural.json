@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "mob": "minecraft:villager",
+  "child": "minecraft:villager",
+  "partner_radius": 10.0,
+  "cooldown_ticks": 12000,
+  "chance_per_attempt": 0.01,
+  "max_nearby_children": 12
+}

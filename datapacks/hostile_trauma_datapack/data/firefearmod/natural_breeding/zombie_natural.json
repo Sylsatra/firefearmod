@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "mob": "minecraft:zombie",
+  "child": "minecraft:zombie",
+  "partner_radius": 8.0,
+  "cooldown_ticks": 6000,
+  "chance_per_attempt": 0.05,
+  "max_nearby_children": 8
+}

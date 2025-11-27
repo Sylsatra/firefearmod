@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "mob": "minecraft:pig",
+  "child": "minecraft:pig",
+  "partner_radius": 8.0,
+  "cooldown_ticks": 6000,
+  "chance_per_attempt": 0.02,
+  "max_nearby_children": 6
+}

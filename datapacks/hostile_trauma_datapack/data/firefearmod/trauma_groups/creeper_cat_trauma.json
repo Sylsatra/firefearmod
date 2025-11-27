@@ -1,0 +1,33 @@
+{
+  "group_id": "creeper_cat_trauma",
+  "mobs": [
+    { "id": "minecraft:creeper" }
+  ],
+  "default_witness_radius": 16.0,
+  "stages": [
+    {
+      "flee_speed": 1.2,
+      "search_radius": 12,
+      "witness_radius": 0.0,
+      "fears": [
+        { "type": "entity", "id": "minecraft:cat", "fear_override": true, "visibility_mode": "ALWAYS" }
+      ],
+      "requirements": []
+    },
+    {
+      "flee_speed": 1.35,
+      "search_radius": 16,
+      "witness_radius": 18.0,
+      "fears": [
+        { "type": "entity", "id": "minecraft:ocelot", "fear_override": true, "visibility_mode": "ALWAYS" },
+        { "type": "item", "id": "minecraft:music_disc_11", "fear_override": true }
+      ],
+      "requirements": [
+        {
+          "type": "hurt_by_entity",
+          "entity": { "id": "minecraft:cat" }
+        }
+      ]
+    }
+  ]
+}

@@ -3,6 +3,7 @@ package com.example.firefearmod.ai;
 import com.example.firefearmod.config.ConfigHolder;
 import com.example.firefearmod.manager.FearGroup;
 import com.example.firefearmod.manager.FearGroup.FearSourceDefinition;
+import com.example.firefearmod.manager.IFearProfile;
 import com.example.firefearmod.util.VisionHelper;
 
 import net.minecraft.core.BlockPos;
@@ -30,7 +31,7 @@ import java.util.List;
 
 public class FireFearGoal extends Goal {
     private final Mob mob;
-    private final FearGroup fearGroup;
+    private final IFearProfile fearGroup;
     private Vec3 dangerPos;
     private int scanCooldown = 0;
     private Vec3 fleeTarget;
@@ -40,13 +41,14 @@ public class FireFearGoal extends Goal {
     private Vec3 dangerClusterCenter = null;
     private boolean overrideHostilityActive = false;
     private boolean targetingSuppressed = false;
+    private IFearProfile.VisibilityMode dangerVisibilityMode = IFearProfile.VisibilityMode.LOOK_BASED;
 
     private static final int REPATH_INTERVAL_TICKS = 12;
     private static final int MAX_LOST_SIGHT_TICKS = 20;
     private static final double OVERRIDE_PRIORITY_BONUS = 16.0;
     private static final double DIRECTION_RETENTION = 0.7;
 
-    public FireFearGoal(Mob mob, FearGroup fearGroup) {
+    public FireFearGoal(Mob mob, IFearProfile fearGroup) {
         this.mob = mob;
         this.fearGroup = fearGroup;
         this.setFlags(EnumSet.of(Goal.Flag.MOVE));
@@ -93,6 +95,7 @@ public class FireFearGoal extends Goal {
         fleeDirection = Vec3.ZERO;
         dangerClusterCenter = null;
         overrideHostilityActive = false;
+        dangerVisibilityMode = IFearProfile.VisibilityMode.LOOK_BASED;
         restoreTargetControl();
         mob.getNavigation().stop();
     }
@@ -100,7 +103,7 @@ public class FireFearGoal extends Goal {
     @Override
     public void tick() {
         if (dangerPos == null) return;
-        if (!VisionHelper.canSeePosition(mob, dangerPos, true)) {
+        if (dangerVisibilityMode == IFearProfile.VisibilityMode.ALWAYS) {
             Vec3 refreshed = findNearestThreat();
             if (refreshed != null) {
                 dangerPos = refreshed;
@@ -113,7 +116,21 @@ public class FireFearGoal extends Goal {
                 }
             }
         } else {
-            lostSightTicks = 0;
+            if (!VisionHelper.canSeePosition(mob, dangerPos, true)) {
+                Vec3 refreshed = findNearestThreat();
+                if (refreshed != null) {
+                    dangerPos = refreshed;
+                    lostSightTicks = 0;
+                } else {
+                    lostSightTicks++;
+                    if (lostSightTicks > MAX_LOST_SIGHT_TICKS) {
+                        stop();
+                        return;
+                    }
+                }
+            } else {
+                lostSightTicks = 0;
+            }
         }
 
         if (overrideHostilityActive) {
@@ -192,6 +209,7 @@ public class FireFearGoal extends Goal {
         Vec3 clusterSum = Vec3.ZERO;
         int threatCount = 0;
         boolean anyOverrideThreatVisible = false;
+        IFearProfile.VisibilityMode bestMode = IFearProfile.VisibilityMode.LOOK_BASED;
 
         if (canCheckBlocksNow() && !shouldSkipBlockCheckBecauseFireTick()) {
             BlockPos mobPos = mob.blockPosition();
@@ -233,16 +251,24 @@ public class FireFearGoal extends Goal {
                 if (!fearGroup.isFearedEntity(entity)) {
                     continue;
                 }
-                Vec3 center = entity.position().add(0.0, entity.getBbHeight() * 0.5, 0.0);
-                if (!VisionHelper.canSeeEntity(mob, entity, true)) {
+                IFearProfile.VisibilityMode mode = fearGroup.getEntityVisibilityMode(entity);
+                boolean visible;
+                if (mode == IFearProfile.VisibilityMode.ALWAYS) {
+                    visible = VisionHelper.canSeeEntity(mob, entity, true);
+                } else {
+                    visible = isMutuallyVisible(entity);
+                }
+                if (!visible) {
                     continue;
                 }
+                Vec3 center = entity.position().add(0.0, entity.getBbHeight() * 0.5, 0.0);
                 boolean override = fearGroup.shouldOverrideHostility(entity);
                 double distSqr = mob.position().distanceToSqr(center);
                 double priority = distSqr - (override ? OVERRIDE_PRIORITY_BONUS : 0.0);
                 if (priority < bestPriority) {
                     bestPriority = priority;
                     closestThreat = center;
+                    bestMode = mode;
                 }
                 clusterSum = clusterSum.add(center);
                 threatCount++;
@@ -255,19 +281,30 @@ public class FireFearGoal extends Goal {
         AABB playerBox = mob.getBoundingBox().inflate(ConfigHolder.PLAYER_CHECK_RADIUS.get(), ConfigHolder.PLAYER_CHECK_VERTICAL.get(), ConfigHolder.PLAYER_CHECK_RADIUS.get());
         List<Player> players = level.getEntitiesOfClass(Player.class, playerBox);
         for (Player player : players) {
-            boolean playerIsFearedEntity = fearGroup.isFearedEntity(player) && VisionHelper.canSeeEntity(mob, player, true);
+            boolean playerIsFearedEntity = fearGroup.isFearedEntity(player);
             if (playerIsFearedEntity) {
-                double distSqr = mob.distanceToSqr(player);
-                double priority = distSqr - (fearGroup.shouldOverrideHostility(player) ? OVERRIDE_PRIORITY_BONUS : 0.0);
-                if (priority < bestPriority) {
-                    bestPriority = priority;
-                    closestThreat = player.getEyePosition();
+                IFearProfile.VisibilityMode mode = fearGroup.getEntityVisibilityMode(player);
+                boolean visible;
+                if (mode == IFearProfile.VisibilityMode.ALWAYS) {
+                    visible = VisionHelper.canSeeEntity(mob, player, true);
+                } else {
+                    visible = isMutuallyVisible(player);
                 }
-                Vec3 center = player.position().add(0.0, player.getBbHeight() * 0.5, 0.0);
-                clusterSum = clusterSum.add(center);
-                threatCount++;
-                if (!anyOverrideThreatVisible && fearGroup.shouldOverrideHostility(player)) {
-                    anyOverrideThreatVisible = true;
+                if (visible) {
+                    double distSqr = mob.distanceToSqr(player);
+                    boolean override = fearGroup.shouldOverrideHostility(player);
+                    double priority = distSqr - (override ? OVERRIDE_PRIORITY_BONUS : 0.0);
+                    if (priority < bestPriority) {
+                        bestPriority = priority;
+                        closestThreat = player.getEyePosition();
+                        bestMode = mode;
+                    }
+                    Vec3 center = player.position().add(0.0, player.getBbHeight() * 0.5, 0.0);
+                    clusterSum = clusterSum.add(center);
+                    threatCount++;
+                    if (!anyOverrideThreatVisible && override) {
+                        anyOverrideThreatVisible = true;
+                    }
                 }
                 continue;
             }
@@ -319,10 +356,49 @@ public class FireFearGoal extends Goal {
             fleeDirection = Vec3.ZERO;
         }
         overrideHostilityActive = anyOverrideThreatVisible;
+        dangerVisibilityMode = bestMode;
         if (anyOverrideThreatVisible && mob.getTarget() != null) {
             suppressHostileTarget();
         }
         return closestThreat;
+    }
+
+    private boolean isMutuallyVisible(Entity entity) {
+        if (!VisionHelper.canSeeEntity(mob, entity, true)) {
+            return false;
+        }
+        if (entity instanceof Mob otherMob) {
+            return VisionHelper.canSeeEntity(otherMob, mob, true);
+        }
+        if (entity instanceof Player player) {
+            Vec3 playerEye = player.getEyePosition();
+            Vec3 view = player.getViewVector(1.0F);
+            Vec3 toMob = mob.getEyePosition().subtract(playerEye);
+            double length = toMob.length();
+            if (length < 1.0E-6) {
+                return true;
+            }
+            Vec3 toMobNorm = toMob.scale(1.0 / length);
+            if (Double.isNaN(toMobNorm.x) || Double.isNaN(toMobNorm.y) || Double.isNaN(toMobNorm.z)) {
+                return false;
+            }
+            Vec3 viewHorizontal = new Vec3(view.x, 0.0, view.z);
+            Vec3 targetHorizontal = new Vec3(toMobNorm.x, 0.0, toMobNorm.z);
+            if (viewHorizontal.lengthSqr() < 1.0E-6 || targetHorizontal.lengthSqr() < 1.0E-6) {
+                return true;
+            }
+            double dotHorizontal = viewHorizontal.normalize().dot(targetHorizontal.normalize());
+            double clampedHorizontal = Math.max(-1.0, Math.min(1.0, dotHorizontal));
+            double angleHorizontal = Math.toDegrees(Math.acos(clampedHorizontal));
+            if (angleHorizontal > 60.0) {
+                return false;
+            }
+            double lookPitch = Math.toDegrees(Math.asin(Math.max(-1.0, Math.min(1.0, view.y))));
+            double targetPitch = Math.toDegrees(Math.asin(Math.max(-1.0, Math.min(1.0, toMobNorm.y))));
+            double verticalDiff = Math.abs(targetPitch - lookPitch);
+            return verticalDiff <= 60.0;
+        }
+        return true;
     }
 
     @Nullable

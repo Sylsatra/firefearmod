@@ -1,0 +1,52 @@
+{
+  "group_id": "villager_raid_trauma",
+  "mobs": [
+    { "id": "minecraft:villager" }
+  ],
+  "default_witness_radius": 16.0,
+  "stages": [
+    {
+      "flee_speed": 1.1,
+      "search_radius": 10,
+      "witness_radius": 0.0,
+      "fears": [
+        { "type": "entity", "id": "minecraft:zombie", "fear_override": true, "visibility_mode": "ALWAYS" },
+        { "type": "entity", "id": "minecraft:pillager", "fear_override": true, "visibility_mode": "ALWAYS" },
+        { "type": "entity", "id": "minecraft:vindicator", "fear_override": true, "visibility_mode": "ALWAYS" },
+        { "type": "entity", "id": "minecraft:evoker", "fear_override": true, "visibility_mode": "ALWAYS" }
+      ],
+      "requirements": []
+    },
+    {
+      "flee_speed": 1.25,
+      "search_radius": 14,
+      "witness_radius": 18.0,
+      "fears": [
+        { "type": "entity", "id": "minecraft:player", "fear_override": true, "visibility_mode": "ALWAYS" }
+      ],
+      "requirements": [
+        {
+          "type": "hurt_by_entity",
+          "entity": { "id": "minecraft:player" }
+        }
+      ]
+    },
+    {
+      "flee_speed": 1.3,
+      "search_radius": 18,
+      "witness_radius": 20.0,
+      "fears": [
+        { "type": "item", "id": "minecraft:crossbow", "fear_override": true },
+        { "type": "item", "id": "minecraft:iron_axe", "fear_override": true }
+      ],
+      "requirements": [
+        {
+          "type": "hurt_by_source",
+          "source": {
+            "item": { "id": "minecraft:crossbow" }
+          }
+        }
+      ]
+    }
+  ]
+}

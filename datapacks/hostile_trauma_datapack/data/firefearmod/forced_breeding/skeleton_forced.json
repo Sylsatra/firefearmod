@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "mob": "minecraft:skeleton",
+  "child": "minecraft:skeleton",
+  "partner_radius": 8.0,
+  "cooldown_ticks": 3000,
+  "max_nearby_children": 8,
+  "consume_item": true,
+  "require_held_item": "minecraft:bone"
+}

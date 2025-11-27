@@ -1,0 +1,45 @@
+{
+  "group_id": "undead_fire_trauma",
+  "mobs": [
+    { "id": "minecraft:zombie" },
+    { "id": "minecraft:husk" },
+    { "id": "minecraft:drowned" },
+    { "id": "minecraft:zombie_villager" },
+    { "id": "minecraft:skeleton" },
+    { "id": "minecraft:stray" },
+    { "id": "minecraft:wither_skeleton" }
+  ],
+  "default_witness_radius": 16.0,
+  "stages": [
+    {
+      "flee_speed": 1.15,
+      "search_radius": 10,
+      "witness_radius": 0.0,
+      "fears": [
+        { "type": "block", "id": "minecraft:fire" },
+        { "type": "block", "id": "minecraft:soul_fire" },
+        { "type": "block", "id": "minecraft:lava" },
+        { "type": "block", "id": "minecraft:magma_block" },
+        { "type": "block", "id": "minecraft:tnt" },
+        { "type": "block", "id": "minecraft:end_crystal" }
+      ],
+      "requirements": []
+    },
+    {
+      "flee_speed": 1.25,
+      "search_radius": 14,
+      "witness_radius": 16.0,
+      "fears": [
+        { "type": "item", "id": "minecraft:flint_and_steel", "fear_override": true }
+      ],
+      "requirements": [
+        {
+          "type": "hurt_by_source",
+          "source": {
+            "item": { "id": "minecraft:flint_and_steel" }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "group_id": "farm_animals_trauma",
+  "mobs": [
+    { "id": "minecraft:pig" },
+    { "id": "minecraft:cow" },
+    { "id": "minecraft:sheep" },
+    { "id": "minecraft:chicken" },
+    { "id": "minecraft:rabbit" },
+    { "id": "minecraft:horse" },
+    { "id": "minecraft:donkey" },
+    { "id": "minecraft:llama" },
+    { "id": "minecraft:goat" },
+    { "id": "minecraft:fox" },
+    { "id": "minecraft:cat" },
+    { "id": "minecraft:wolf" }
+  ],
+  "default_witness_radius": 12.0,
+  "stages": [
+    {
+      "flee_speed": 1.05,
+      "search_radius": 8,
+      "witness_radius": 0.0,
+      "fears": [
+        { "type": "block", "id": "minecraft:fire" },
+        { "type": "block", "id": "minecraft:soul_fire" },
+        { "type": "block", "id": "minecraft:lava" },
+        { "type": "block", "id": "minecraft:magma_block" },
+        { "type": "block", "id": "minecraft:campfire", "states": { "lit": "true" } },
+        { "type": "block", "id": "minecraft:soul_campfire", "states": { "lit": "true" } }
+      ],
+      "requirements": []
+    },
+    {
+      "flee_speed": 1.15,
+      "search_radius": 10,
+      "witness_radius": 12.0,
+      "fears": [
+        { "type": "entity", "id": "minecraft:player", "fear_override": false, "visibility_mode": "ALWAYS" }
+      ],
+      "requirements": [
+        {
+          "type": "hurt_by_entity",
+          "entity": { "id": "minecraft:player" }
+        }
+      ]
+    },
+    {
+      "flee_speed": 1.25,
+      "search_radius": 12,
+      "witness_radius": 16.0,
+      "fears": [
+        { "type": "item", "id": "minecraft:wooden_sword", "fear_override": true },
+        { "type": "item", "id": "minecraft:stone_sword", "fear_override": true },
+        { "type": "item", "id": "minecraft:iron_sword", "fear_override": true },
+        { "type": "item", "id": "minecraft:iron_axe", "fear_override": true }
+      ],
+      "requirements": [
+        {
+          "type": "hurt_by_source",
+          "source": {
+            "item": { "id": "minecraft:iron_sword" }
+          }
+        }
+      ]
+    }
+  ]
+}
