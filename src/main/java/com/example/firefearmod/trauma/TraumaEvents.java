@@ -156,14 +156,12 @@ public class TraumaEvents {
         if (def == null) {
             return false;
         }
-        // Try matching attacker-held item first
         Entity attacker = source.getEntity();
         if (attacker instanceof LivingEntity living) {
             if (matchesHeldItem(def, living.getMainHandItem()) || matchesHeldItem(def, living.getOffhandItem())) {
                 return true;
             }
         }
-        // Fallback: try matching block at and below victim position
         Level level = victim.level();
         BlockPos basePos = victim.blockPosition();
         return matchesBlockAt(def, level, basePos) || matchesBlockAt(def, level, basePos.below());
@@ -219,9 +217,7 @@ public class TraumaEvents {
             if (data == null) {
                 continue;
             }
-            // Only consider watchers that belong to the same trauma group
-            boolean inGroup = TraumaGroupManager.getGroupsForMob(watcher).stream().anyMatch(g -> g.id().equals(group.id()));
-            if (!inGroup) {
+            if (!TraumaGroupManager.isMobInGroup(watcher, group.id())) {
                 continue;
             }
             int currentStage = data.getStage(group.id());

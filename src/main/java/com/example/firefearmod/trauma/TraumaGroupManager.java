@@ -333,4 +333,23 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
         }
         return result;
     }
+
+    public static boolean isMobInGroup(Mob mob, ResourceLocation groupId) {
+        TraumaGroup group = GROUPS.get(groupId);
+        if (group == null) {
+            return false;
+        }
+        ResourceLocation mobId = ForgeRegistries.ENTITY_TYPES.getKey(mob.getType());
+        if (mobId == null) {
+            return false;
+        }
+        int bestScore = -1;
+        for (FearGroup.MobDefinition def : group.mobs()) {
+            int score = def.getMatchScore(mob, mobId);
+            if (score > bestScore) {
+                bestScore = score;
+            }
+        }
+        return bestScore >= 0;
+    }
 }

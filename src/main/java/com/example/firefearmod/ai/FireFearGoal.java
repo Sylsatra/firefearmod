@@ -44,7 +44,7 @@ public class FireFearGoal extends Goal {
     private IFearProfile.VisibilityMode dangerVisibilityMode = IFearProfile.VisibilityMode.LOOK_BASED;
 
     private static final int REPATH_INTERVAL_TICKS = 12;
-    private static final int MAX_LOST_SIGHT_TICKS = 20;
+    private static final int MAX_LOST_SIGHT_TICKS = 40;
     private static final double OVERRIDE_PRIORITY_BONUS = 16.0;
     private static final double DIRECTION_RETENTION = 0.7;
 
@@ -143,6 +143,11 @@ public class FireFearGoal extends Goal {
             repathCooldown--;
         }
         updateFleePath(false);
+    }
+
+    @Override
+    public boolean isInterruptable() {
+        return false;
     }
 
     private Vec3 getFleePos() {
