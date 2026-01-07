@@ -1,0 +1,25 @@
+{
+  "group_id": "flying_animals_trauma",
+  "mobs": [
+    { "id": "minecraft:parrot" },
+    { "id": "minecraft:bat" },
+    { "id": "minecraft:bee" },
+    { "id": "minecraft:allay" }
+  ],
+  "default_witness_radius": 14.0,
+  "stages": [
+    {
+      "flee_speed": 1.30,
+      "search_radius": 12,
+      "witness_radius": 0.0,
+      "fears": [
+        { "type": "block", "id": "#firefearmod:animal_hot_blocks" },
+        { "type": "block", "id": "#firefearmod:animal_explosives" },
+        { "type": "item", "id": "#firefearmod:animal_fire_items", "fear_override": true },
+        { "type": "item", "id": "#firefearmod:animal_weapons", "fear_override": true },
+        { "type": "entity", "id": "minecraft:player", "fear_override": false, "visibility_mode": "ALWAYS" }
+      ],
+      "requirements": []
+    }
+  ]
+}

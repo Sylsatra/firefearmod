@@ -55,13 +55,14 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
 
                 List<FearGroup.MobDefinition> mobs = parseMobs(obj, groupId);
                 List<TraumaGroup.TraumaStage> stages = parseStages(obj, groupId, maxStages);
+                List<TraumaGroup.TraumaCondition> conditions = parseConditions(obj, groupId);
 
                 if (stages.isEmpty()) {
                     LOGGER.warn("Trauma group '{}' has no stages, skipping", groupId);
                     continue;
                 }
 
-                TraumaGroup group = new TraumaGroup(groupId, mobs, defaultWitnessRadius, stages);
+                TraumaGroup group = new TraumaGroup(groupId, mobs, defaultWitnessRadius, stages, conditions);
                 GROUPS.put(groupId, group);
             } catch (Exception e) {
                 LOGGER.error("Failed to parse trauma group JSON {}: {}", fileId, e.getMessage());
@@ -307,6 +308,32 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
                 }
             }
         }
+    }
+
+    private static List<TraumaGroup.TraumaCondition> parseConditions(JsonObject root, ResourceLocation groupId) {
+        List<TraumaGroup.TraumaCondition> result = new ArrayList<>();
+        if (!root.has("conditions")) {
+            return result;
+        }
+        JsonArray array = GsonHelper.getAsJsonArray(root, "conditions");
+        for (JsonElement element : array) {
+            JsonObject obj = GsonHelper.convertToJsonObject(element, "condition");
+            String typeStr = GsonHelper.getAsString(obj, "type", "");
+            TraumaGroup.ConditionType type;
+            try {
+                type = TraumaGroup.ConditionType.valueOf(typeStr.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                LOGGER.warn("Unknown condition type '{}' in trauma group '{}'", typeStr, groupId);
+                continue;
+            }
+
+            Double min = obj.has("min") ? GsonHelper.getAsDouble(obj, "min") : null;
+            Double max = obj.has("max") ? GsonHelper.getAsDouble(obj, "max") : null;
+            Boolean boolValue = obj.has("value") ? GsonHelper.getAsBoolean(obj, "value") : null;
+            
+            result.add(new TraumaGroup.TraumaCondition(type, min, max, boolValue));
+        }
+        return result;
     }
 
     public static Collection<TraumaGroup> getAllGroups() {

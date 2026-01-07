@@ -1,0 +1,22 @@
+{
+  "group_id": "example:cow_player_fear",
+  "default_witness_radius": 16.0,
+  "mobs": [
+    {
+      "id": "minecraft:cow"
+    }
+  ],
+  "stages": [
+    {
+      "flee_speed": 1.0,
+      "search_radius": 12,
+      "fears": [
+        {
+          "type": "entity",
+          "id": "minecraft:player",
+          "visibility_mode": "LOOK_BASED"
+        }
+      ]
+    }
+  ]
+}

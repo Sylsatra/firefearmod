@@ -1,0 +1,20 @@
+{
+  "group_id": "nether_animals_trauma",
+  "mobs": [
+    { "id": "minecraft:strider" }
+  ],
+  "default_witness_radius": 10.0,
+  "stages": [
+    {
+      "flee_speed": 1.08,
+      "search_radius": 8,
+      "witness_radius": 0.0,
+      "fears": [
+        { "type": "block", "id": "#firefearmod:animal_explosives" },
+        { "type": "item", "id": "#firefearmod:animal_weapons", "fear_override": true },
+        { "type": "entity", "id": "minecraft:player", "fear_override": false, "visibility_mode": "ALWAYS" }
+      ],
+      "requirements": []
+    }
+  ]
+}

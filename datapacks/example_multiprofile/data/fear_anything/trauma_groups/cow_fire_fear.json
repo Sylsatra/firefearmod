@@ -1,0 +1,18 @@
+{
+  "group_id": "example:cow_fire_fear",
+  "default_witness_radius": 32.0,
+  "mobs": [
+    { "id": "minecraft:cow" }
+  ],
+  "stages": [
+    {
+      "flee_speed": 1.6,
+      "search_radius": 32,
+      "fears": [
+        { "type": "block", "id": "#minecraft:fire" },
+        { "type": "block", "id": "#minecraft:campfires" },
+        { "type": "block", "id": "minecraft:lava" }
+      ]
+    }
+  ]
+}

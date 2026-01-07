@@ -31,6 +31,9 @@ public class TraumaProfile implements IFearProfile {
         double result = DEFAULT_FLEE_SPEED;
         boolean found = false;
         for (TraumaGroup group : groups) {
+            if (!areConditionsMet(group)) {
+                continue;
+            }
             int stageIndex = getActiveStageIndex(group, data);
             if (stageIndex < 0) {
                 continue;
@@ -52,6 +55,9 @@ public class TraumaProfile implements IFearProfile {
         int result = DEFAULT_SEARCH_RADIUS;
         boolean found = false;
         for (TraumaGroup group : groups) {
+            if (!areConditionsMet(group)) {
+                continue;
+            }
             int stageIndex = getActiveStageIndex(group, data);
             if (stageIndex < 0) {
                 continue;
@@ -76,6 +82,9 @@ public class TraumaProfile implements IFearProfile {
         }
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
         for (TraumaGroup group : groups) {
+            if (!areConditionsMet(group)) {
+                continue;
+            }
             int stageIndex = getActiveStageIndex(group, data);
             if (stageIndex < 0) {
                 continue;
@@ -104,6 +113,9 @@ public class TraumaProfile implements IFearProfile {
         }
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
         for (TraumaGroup group : groups) {
+            if (!areConditionsMet(group)) {
+                continue;
+            }
             int stageIndex = getActiveStageIndex(group, data);
             if (stageIndex < 0) {
                 continue;
@@ -124,6 +136,9 @@ public class TraumaProfile implements IFearProfile {
     public boolean hasFearedEntities() {
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
         for (TraumaGroup group : groups) {
+            if (!areConditionsMet(group)) {
+                continue;
+            }
             int stageIndex = getActiveStageIndex(group, data);
             if (stageIndex < 0) {
                 continue;
@@ -151,6 +166,9 @@ public class TraumaProfile implements IFearProfile {
         }
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
         for (TraumaGroup group : groups) {
+            if (!areConditionsMet(group)) {
+                continue;
+            }
             int stageIndex = getActiveStageIndex(group, data);
             if (stageIndex < 0) {
                 continue;
@@ -175,6 +193,9 @@ public class TraumaProfile implements IFearProfile {
         }
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
         for (TraumaGroup group : groups) {
+            if (!areConditionsMet(group)) {
+                continue;
+            }
             int stageIndex = getActiveStageIndex(group, data);
             if (stageIndex < 0) {
                 continue;
@@ -198,24 +219,40 @@ public class TraumaProfile implements IFearProfile {
 
     @Override
     public boolean shouldOverrideHostility(BlockState blockState, @Nullable BlockEntity blockEntity) {
+        if (com.example.firefearmod.integration.LureIntegration.isLuredByBlock(mob, blockState, blockEntity)) {
+            return true;
+        }
         FearGroup.FearSourceDefinition def = findFearedBlock(blockState, blockEntity);
         return def != null && def.fearOverride();
     }
 
     @Override
     public boolean shouldOverrideHostility(ItemStack stack) {
+        if (com.example.firefearmod.integration.LureIntegration.isLuredByItem(mob, stack)) {
+            return true;
+        }
+        if (mob instanceof net.minecraft.world.entity.animal.Animal animal && animal.isFood(stack)) {
+            return true;
+        }
         FearGroup.FearSourceDefinition def = findFearedItem(stack);
         return def != null && def.fearOverride();
     }
 
     @Override
     public boolean shouldOverrideHostility(Entity entity) {
+        if (entity instanceof net.minecraft.world.entity.LivingEntity living && 
+            com.example.firefearmod.integration.LureIntegration.isLured(mob, living)) {
+            return true;
+        }
         ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
         if (entityId == null) {
             return false;
         }
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
         for (TraumaGroup group : groups) {
+            if (!areConditionsMet(group)) {
+                continue;
+            }
             int stageIndex = getActiveStageIndex(group, data);
             if (stageIndex < 0) {
                 continue;
@@ -230,6 +267,35 @@ public class TraumaProfile implements IFearProfile {
             }
         }
         return false;
+    }
+
+    private boolean areConditionsMet(TraumaGroup group) {
+        if (group.conditions() == null || group.conditions().isEmpty()) {
+            return true;
+        }
+        for (TraumaGroup.TraumaCondition condition : group.conditions()) {
+            switch (condition.type()) {
+                case HEALTH_PERCENT -> {
+                    float healthPct = mob.getHealth() / mob.getMaxHealth();
+                    if (condition.min() != null && healthPct < condition.min()) return false;
+                    if (condition.max() != null && healthPct > condition.max()) return false;
+                }
+                case IS_DAY -> {
+                    boolean isDay = mob.level().isDay();
+                    if (condition.boolValue() != null && isDay != condition.boolValue()) return false;
+                }
+                case IS_RAINING -> {
+                    boolean isRaining = mob.level().isRaining();
+                    if (condition.boolValue() != null && isRaining != condition.boolValue()) return false;
+                }
+                case Y_LEVEL -> {
+                    double y = mob.getY();
+                    if (condition.min() != null && y < condition.min()) return false;
+                    if (condition.max() != null && y > condition.max()) return false;
+                }
+            }
+        }
+        return true;
     }
 
     private static int getActiveStageIndex(TraumaGroup group, @Nullable ITraumaData data) {
@@ -273,5 +339,107 @@ public class TraumaProfile implements IFearProfile {
             }
         }
         return null;
+    }
+
+    @Override
+    public double getFleeSpeedFor(Entity entity) {
+         ITraumaData data = TraumaCapability.get(mob).orElse(null);
+         ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+         double result = -1.0;
+         
+         for (TraumaGroup group : groups) {
+             if (!areConditionsMet(group)) continue;
+             int stageIndex = getActiveStageIndex(group, data);
+             if (stageIndex < 0) continue;
+             
+             Double speed = null;
+             // Check entities
+             if (entityId != null) {
+                 for (int i = 0; i <= stageIndex; i++) {
+                     TraumaGroup.TraumaStage stage = group.stages().get(i);
+                     for (FearGroup.FearedEntityDefinition def : stage.fearedEntities()) {
+                         if (def.matches(entityId, entity)) {
+                             speed = resolveFleeSpeed(group, i);
+                             break;
+                         }
+                     }
+                     if (speed == null) {
+                         for (FearGroup.FearSourceDefinition def : stage.fearedBlocks()) {
+                             if (def.matchesEntity(entityId, entity)) {
+                                 speed = resolveFleeSpeed(group, i);
+                                 break;
+                             }
+                         }
+                     }
+                     if (speed != null) break;
+                 }
+             }
+             
+             if (speed != null && (result < 0 || speed > result)) {
+                 result = speed;
+             }
+         }
+         return result < 0 ? fleeSpeed() : result;
+    }
+
+    @Override
+    public double getFleeSpeedFor(BlockState state) {
+         ITraumaData data = TraumaCapability.get(mob).orElse(null);
+         ResourceLocation blockId = ForgeRegistries.BLOCKS.getKey(state.getBlock());
+         if (blockId == null) return fleeSpeed();
+         double result = -1.0;
+ 
+         for (TraumaGroup group : groups) {
+             if (!areConditionsMet(group)) continue;
+             int stageIndex = getActiveStageIndex(group, data);
+             if (stageIndex < 0) continue;
+ 
+             Double speed = null;
+             for (int i = 0; i <= stageIndex; i++) {
+                 TraumaGroup.TraumaStage stage = group.stages().get(i);
+                 for (FearGroup.FearSourceDefinition def : stage.fearedBlocks()) {
+                      if (def.matches(blockId, state, null, null)) {
+                          speed = resolveFleeSpeed(group, i);
+                          break;
+                      }
+                 }
+                 if (speed != null) break;
+             }
+              if (speed != null && (result < 0 || speed > result)) {
+                 result = speed;
+             }
+         }
+         return result < 0 ? fleeSpeed() : result;
+    }
+
+    @Override
+    public double getFleeSpeedFor(ItemStack stack) {
+          ITraumaData data = TraumaCapability.get(mob).orElse(null);
+          if (stack.isEmpty()) return fleeSpeed();
+          ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
+          if (itemId == null) return fleeSpeed();
+          double result = -1.0;
+ 
+         for (TraumaGroup group : groups) {
+             if (!areConditionsMet(group)) continue;
+             int stageIndex = getActiveStageIndex(group, data);
+             if (stageIndex < 0) continue;
+ 
+             Double speed = null;
+             for (int i = 0; i <= stageIndex; i++) {
+                 TraumaGroup.TraumaStage stage = group.stages().get(i);
+                 for (FearGroup.FearSourceDefinition def : stage.fearedItems()) {
+                      if (def.matches(itemId, null, null, stack)) {
+                          speed = resolveFleeSpeed(group, i);
+                          break;
+                      }
+                 }
+                 if (speed != null) break;
+             }
+              if (speed != null && (result < 0 || speed > result)) {
+                 result = speed;
+             }
+         }
+         return result < 0 ? fleeSpeed() : result;
     }
 }

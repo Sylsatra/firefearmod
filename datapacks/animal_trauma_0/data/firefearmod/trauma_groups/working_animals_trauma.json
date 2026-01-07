@@ -1,0 +1,26 @@
+{
+  "group_id": "working_animals_trauma",
+  "mobs": [
+    { "id": "minecraft:horse" },
+    { "id": "minecraft:donkey" },
+    { "id": "minecraft:mule" },
+    { "id": "minecraft:llama" },
+    { "id": "minecraft:trader_llama" }
+  ],
+  "default_witness_radius": 12.0,
+  "stages": [
+    {
+      "flee_speed": 1.15,
+      "search_radius": 9,
+      "witness_radius": 0.0,
+      "fears": [
+        { "type": "block", "id": "#firefearmod:animal_hot_blocks" },
+        { "type": "block", "id": "#firefearmod:animal_explosives" },
+        { "type": "item", "id": "#firefearmod:animal_fire_items", "fear_override": true },
+        { "type": "item", "id": "#firefearmod:animal_weapons", "fear_override": true },
+        { "type": "entity", "id": "minecraft:player", "fear_override": false, "visibility_mode": "ALWAYS" }
+      ],
+      "requirements": []
+    }
+  ]
+}

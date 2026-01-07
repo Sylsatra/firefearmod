@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:tnt",
+    "minecraft:end_crystal",
+    "minecraft:respawn_anchor"
+  ]
+}

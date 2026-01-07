@@ -14,7 +14,9 @@ import net.minecraftforge.fml.ModList;
 
 public final class VisionHelper {
     private static final String SOUND_ATTRACT_MOD_ID = "soundattract";
+    private static final String QUANTIFIED_MOD_ID = "quantified";
     private static final boolean SOUND_ATTRACT_LOADED = ModList.get().isLoaded(SOUND_ATTRACT_MOD_ID);
+    private static final boolean QUANTIFIED_LOADED = ModList.get().isLoaded(QUANTIFIED_MOD_ID);
     private static final double FALLBACK_FOV_DEGREES = 120.0;
 
     private VisionHelper() {
@@ -60,6 +62,18 @@ public final class VisionHelper {
         if (looker == null || target == null) {
             return false;
         }
+        
+        if (QUANTIFIED_LOADED) {
+             try {
+                 return QuantifiedBridge.getCachedLineOfSight(looker, target);
+             } catch (Throwable ignored) {
+             }
+        }
+
+        return computeLineOfSight(looker, target);
+    }
+
+    private static boolean computeLineOfSight(Mob looker, Vec3 target) {
         Vec3 eyePos = looker.getEyePosition();
         Vec3 direction = target.subtract(eyePos);
         double distance = direction.length();
@@ -129,7 +143,7 @@ public final class VisionHelper {
             Class<?> clazz;
             java.lang.reflect.Method method;
             try {
-                clazz = Class.forName("com.example.soundattract.FovEvents");
+                clazz = Class.forName("com.example.soundattract.event.FovEvents");
                 method = clazz.getMethod("isTargetInFov", Mob.class, Entity.class, boolean.class);
             } catch (Throwable throwable) {
                 clazz = null;
@@ -163,6 +177,48 @@ public final class VisionHelper {
             } finally {
                 probe.discard();
             }
+        }
+    }
+    
+    private static final class QuantifiedBridge {
+        private static final Class<?> API_CLASS;
+        private static final java.lang.reflect.Method GET_CACHED_METHOD;
+
+        static {
+            Class<?> clazz;
+            java.lang.reflect.Method method;
+            try {
+                clazz = Class.forName("org.admany.quantified.api.QuantifiedAPI");
+                method = clazz.getMethod("getCached", String.class, String.class, java.util.function.Supplier.class);
+            } catch (Throwable t) {
+                clazz = null;
+                method = null;
+            }
+            API_CLASS = clazz;
+            GET_CACHED_METHOD = method;
+        }
+
+        private static boolean getCachedLineOfSight(Mob looker, Vec3 target) throws ReflectiveOperationException {
+            if (API_CLASS == null || GET_CACHED_METHOD == null) {
+                return computeLineOfSight(looker, target);
+            }
+             
+            Vec3 start = looker.getEyePosition();
+            String dim = looker.level().dimension().location().toString();
+            String key = new StringBuilder(96)
+                    .append(dim).append('|')
+                    .append(q(start.x)).append(',').append(q(start.y)).append(',').append(q(start.z)).append('|')
+                    .append(q(target.x)).append(',').append(q(target.y)).append(',').append(q(target.z))
+                    .toString();
+
+            java.util.function.Supplier<Boolean> loader = () -> computeLineOfSight(looker, target);
+            
+            Object result = GET_CACHED_METHOD.invoke(null, "firefear_los", key, loader);
+            return result instanceof Boolean bool ? bool : computeLineOfSight(looker, target);
+        }
+
+        private static int q(double v) {
+            return (int) Math.round(v * 4.0);
         }
     }
 }

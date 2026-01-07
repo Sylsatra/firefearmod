@@ -1,0 +1,29 @@
+{
+  "group_id": "farm_land_animals_trauma",
+  "mobs": [
+    { "id": "minecraft:pig" },
+    { "id": "minecraft:cow" },
+    { "id": "minecraft:sheep" },
+    { "id": "minecraft:chicken" },
+    { "id": "minecraft:rabbit" },
+    { "id": "minecraft:goat" },
+    { "id": "minecraft:mooshroom" },
+    { "id": "minecraft:camel" }
+  ],
+  "default_witness_radius": 12.0,
+  "stages": [
+    {
+      "flee_speed": 1.10,
+      "search_radius": 8,
+      "witness_radius": 0.0,
+      "fears": [
+        { "type": "block", "id": "#firefearmod:animal_hot_blocks" },
+        { "type": "block", "id": "#firefearmod:animal_explosives" },
+        { "type": "item", "id": "#firefearmod:animal_fire_items", "fear_override": true },
+        { "type": "item", "id": "#firefearmod:animal_weapons", "fear_override": true },
+        { "type": "entity", "id": "minecraft:player", "fear_override": false, "visibility_mode": "ALWAYS" }
+      ],
+      "requirements": []
+    }
+  ]
+}

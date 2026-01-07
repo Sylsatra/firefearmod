@@ -9,13 +9,24 @@ import java.util.List;
 public record TraumaGroup(ResourceLocation id,
                           List<FearGroup.MobDefinition> mobs,
                           double defaultWitnessRadius,
-                          List<TraumaGroup.TraumaStage> stages) {
+                          List<TraumaGroup.TraumaStage> stages,
+                          List<TraumaCondition> conditions) {
 
     public enum RequirementType {
         HURT_BY_ENTITY,
         HURT_BY_SOURCE,
         WITNESS_HURT_BY_ENTITY,
         WITNESS_HURT_BY_SOURCE
+    }
+
+    public enum ConditionType {
+        HEALTH_PERCENT,
+        IS_DAY,
+        IS_RAINING,
+        Y_LEVEL
+    }
+
+    public record TraumaCondition(ConditionType type, @Nullable Double min, @Nullable Double max, @Nullable Boolean boolValue) {
     }
 
     public record TraumaRequirement(RequirementType type,

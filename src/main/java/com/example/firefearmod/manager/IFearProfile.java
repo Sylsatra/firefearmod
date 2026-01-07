@@ -33,5 +33,9 @@ public interface IFearProfile {
 
     boolean shouldOverrideHostility(Entity entity);
 
+    default double getFleeSpeedFor(Entity entity) { return fleeSpeed(); }
+    default double getFleeSpeedFor(BlockState state) { return fleeSpeed(); }
+    default double getFleeSpeedFor(ItemStack stack) { return fleeSpeed(); }
+
     VisibilityMode getEntityVisibilityMode(Entity entity);
 }

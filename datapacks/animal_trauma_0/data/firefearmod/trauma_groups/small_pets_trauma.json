@@ -1,0 +1,24 @@
+{
+  "group_id": "small_pets_trauma",
+  "mobs": [
+    { "id": "minecraft:cat" },
+    { "id": "minecraft:fox" },
+    { "id": "minecraft:ocelot" }
+  ],
+  "default_witness_radius": 12.0,
+  "stages": [
+    {
+      "flee_speed": 1.28,
+      "search_radius": 10,
+      "witness_radius": 0.0,
+      "fears": [
+        { "type": "block", "id": "#firefearmod:animal_hot_blocks" },
+        { "type": "block", "id": "#firefearmod:animal_explosives" },
+        { "type": "item", "id": "#firefearmod:animal_fire_items", "fear_override": true },
+        { "type": "item", "id": "#firefearmod:animal_weapons", "fear_override": true },
+        { "type": "entity", "id": "minecraft:player", "fear_override": false, "visibility_mode": "ALWAYS" }
+      ],
+      "requirements": []
+    }
+  ]
+}
