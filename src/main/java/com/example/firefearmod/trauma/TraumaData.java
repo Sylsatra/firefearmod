@@ -11,6 +11,23 @@ public class TraumaData implements ITraumaData {
     private static final String STAGES_KEY = "stages";
 
     private final Map<ResourceLocation, Integer> stages = new HashMap<>();
+    private final com.example.firefearmod.util.PerformanceCache cache = new com.example.firefearmod.util.PerformanceCache();
+    private int tickCounter = 0;
+
+    @Override
+    public void tick() {
+        tickCounter++;
+        int ttl = com.example.firefearmod.config.ConfigHolder.CACHE_TTL_TICKS.get();
+        if (tickCounter >= ttl) {
+            tickCounter = 0;
+            cache.clear();
+        }
+    }
+
+    @Override
+    public com.example.firefearmod.util.PerformanceCache getCache() {
+        return cache;
+    }
 
     @Override
     public int getStage(ResourceLocation groupId) {

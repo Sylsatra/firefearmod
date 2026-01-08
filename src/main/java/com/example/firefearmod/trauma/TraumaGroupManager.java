@@ -188,6 +188,9 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
 
         String customName = obj.has("custom_name") ? GsonHelper.getAsString(obj, "custom_name") : null;
         boolean fearOverride = obj.has("fear_override") && GsonHelper.getAsBoolean(obj, "fear_override");
+        boolean temptation = (obj.has("temptation") && GsonHelper.getAsBoolean(obj, "temptation")) ||
+                             (obj.has("is_tempted_by") && GsonHelper.getAsBoolean(obj, "is_tempted_by"));
+        boolean mutualVision = obj.has("mutual_vision") && GsonHelper.getAsBoolean(obj, "mutual_vision");
 
         Config statesCfg = null;
         if (obj.has("states")) {
@@ -208,7 +211,7 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
             }
         }
 
-        return new FearGroup.FearSourceDefinition(id, isTag, customName, statesCfg, nbt, fearOverride);
+        return new FearGroup.FearSourceDefinition(id, isTag, customName, statesCfg, nbt, fearOverride, temptation, mutualVision);
     }
 
     @Nullable
@@ -249,7 +252,7 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
             mode = IFearProfile.VisibilityMode.LOOK_BASED;
         }
 
-        FearGroup.FearSourceDefinition src = new FearGroup.FearSourceDefinition(id, isTag, customName, null, nbt, false);
+        FearGroup.FearSourceDefinition src = new FearGroup.FearSourceDefinition(id, isTag, customName, null, nbt, false, false, false);
         return new FearGroup.FearedEntityDefinition(src, fearOverride, mode);
     }
 
@@ -338,6 +341,10 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
 
     public static Collection<TraumaGroup> getAllGroups() {
         return Collections.unmodifiableCollection(GROUPS.values());
+    }
+
+    public static TraumaGroup getGroup(ResourceLocation id) {
+        return GROUPS.get(id);
     }
 
     public static List<TraumaGroup> getGroupsForMob(Mob mob) {

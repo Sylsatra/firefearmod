@@ -143,6 +143,35 @@ public record FearGroup(
         return IFearProfile.VisibilityMode.LOOK_BASED;
     }
 
+    @Override
+    public boolean isMutualVision(Entity entity) {
+        ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+        if (entityId == null) return false;
+        for (FearedEntityDefinition def : fearedEntities) {
+            if (def.matches(entityId, entity)) {
+                return def.source().mutualVision();
+            }
+        }
+        for (FearSourceDefinition def : fearedBlocks) {
+            if (def.matchesEntity(entityId, entity)) {
+                return def.mutualVision();
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean isMutualVision(ItemStack stack) {
+        FearSourceDefinition def = findFearedItem(stack);
+        return def != null && def.mutualVision();
+    }
+
+    @Override
+    public boolean isMutualVision(BlockState state, @Nullable BlockEntity be) {
+        FearSourceDefinition def = findFearedBlock(state, be);
+        return def != null && def.mutualVision();
+    }
+
     public record MobDefinition(ResourceLocation id, @Nullable String customName, @Nullable CompoundTag nbt) {
         public static MobDefinition fromConfig(Config config) {
             ResourceLocation id = new ResourceLocation((String)config.get("id"));
@@ -172,7 +201,7 @@ public record FearGroup(
         }
     }
 
-    public record FearSourceDefinition(ResourceLocation id, boolean isTag, @Nullable String customName, @Nullable Config states, @Nullable CompoundTag nbt, boolean fearOverride) {
+    public record FearSourceDefinition(ResourceLocation id, boolean isTag, @Nullable String customName, @Nullable Config states, @Nullable CompoundTag nbt, boolean fearOverride, boolean temptation, boolean mutualVision) {
         public static FearSourceDefinition fromConfig(Config config) {
             String raw = (String) config.get("id");
             boolean isTag = false;
@@ -189,7 +218,9 @@ public record FearGroup(
                 } catch (Exception e) { throw new IllegalArgumentException("Invalid NBT: " + e.getMessage()); }
             }).orElse(null);
             boolean fearOverride = config.getOptional("fear_override").map(o -> (Boolean) o).orElse(false);
-            return new FearSourceDefinition(id, isTag, customName, states, nbt, fearOverride);
+            boolean temptation = config.getOptional("temptation").map(o -> (Boolean) o).orElse(false);
+            boolean mutualVision = config.getOptional("mutual_vision").map(o -> (Boolean) o).orElse(false);
+            return new FearSourceDefinition(id, isTag, customName, states, nbt, fearOverride, temptation, mutualVision);
         }
         
         public boolean matches(ResourceLocation targetId, @Nullable BlockState blockState, @Nullable BlockEntity blockEntity, @Nullable ItemStack itemStack) {

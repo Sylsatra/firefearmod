@@ -1,0 +1,8 @@
+{
+    "mob": "minecraft:cow",
+    "child": "minecraft:cow",
+    "partner_radius": 10.0,
+    "cooldown_ticks": 6000,
+    "chance_per_attempt": 0.1,
+    "max_nearby_children": 5
+}

@@ -12,4 +12,8 @@ public interface ITraumaData {
     Map<ResourceLocation, Integer> getAllStages();
 
     void clampStages(int maxStages);
+
+    void tick();
+
+    com.example.firefearmod.util.PerformanceCache getCache();
 }

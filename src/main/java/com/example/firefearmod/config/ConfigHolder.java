@@ -23,6 +23,9 @@ public class ConfigHolder {
     public static final ForgeConfigSpec.IntValue LIGHT_CHECK_COOLDOWN_TICKS;
     public static final ForgeConfigSpec.BooleanValue INTERGENERATIONAL_TRAUMA_ENABLED;
     public static final ForgeConfigSpec.IntValue MAX_TRAUMA_STAGES_PER_GROUP;
+    public static final ForgeConfigSpec.BooleanValue CHECK_ALL_MOB_HELD_ITEMS;
+    public static final ForgeConfigSpec.IntValue MOB_HELD_ITEM_CHECK_RADIUS;
+    public static final ForgeConfigSpec.IntValue CACHE_TTL_TICKS;
 
     private static String targetSchemaVersion = "";
 
@@ -59,6 +62,15 @@ public class ConfigHolder {
         PLAYER_CHECK_VERTICAL = BUILDER.defineInRange("playerCheckVertical", 4, 1, 64);
         BLOCK_CHECK_PLAYER_RADIUS = BUILDER.defineInRange("blockCheckPlayerRadius", 16, 1, 64);
         LIGHT_CHECK_COOLDOWN_TICKS = BUILDER.defineInRange("lightCheckCooldownTicks", 20, 1, 200);
+        CHECK_ALL_MOB_HELD_ITEMS = BUILDER
+                .comment("If true, check held items of ALL mobs (expensive). If false, only check Players' held items.")
+                .define("checkAllMobHeldItems", false);
+        MOB_HELD_ITEM_CHECK_RADIUS = BUILDER
+                .comment("Only check held items of mobs within this radius of any player (performance optimization).")
+                .defineInRange("mobHeldItemCheckRadius", 32, 8, 128);
+        CACHE_TTL_TICKS = BUILDER
+                .comment("How often to clear the per-mob fear/temptation cache (in ticks). Lower = more responsive, higher = better performance.")
+                .defineInRange("cacheTTLTicks", 20, 5, 100);
         BUILDER.pop();
         BUILDER.push("IntergenerationalTrauma");
         INTERGENERATIONAL_TRAUMA_ENABLED = BUILDER.define("intergenerationalTraumaEnabled", false);

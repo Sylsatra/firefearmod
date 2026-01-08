@@ -1,0 +1,8 @@
+{
+    "mob": "minecraft:cow",
+    "child": "minecraft:cow",
+    "require_held_item": "minecraft:stick",
+    "partner_radius": 6.0,
+    "cooldown_ticks": 200,
+    "max_nearby_children": 10
+}

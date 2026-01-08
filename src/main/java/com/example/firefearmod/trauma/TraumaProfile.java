@@ -18,11 +18,20 @@ public class TraumaProfile implements IFearProfile {
     private static final int DEFAULT_SEARCH_RADIUS = 8;
 
     private final Mob mob;
-    private final List<TraumaGroup> groups;
+    private final List<ResourceLocation> groupIds;
 
     public TraumaProfile(Mob mob, List<TraumaGroup> groups) {
         this.mob = mob;
-        this.groups = List.copyOf(groups);
+        this.groupIds = groups.stream().map(TraumaGroup::id).toList();
+    }
+    
+    private List<TraumaGroup> getGroups() {
+        List<TraumaGroup> list = new java.util.ArrayList<>();
+        for (ResourceLocation id : groupIds) {
+            TraumaGroup g = TraumaGroupManager.getGroup(id);
+            if (g != null) list.add(g);
+        }
+        return list;
     }
 
     @Override
@@ -30,7 +39,7 @@ public class TraumaProfile implements IFearProfile {
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
         double result = DEFAULT_FLEE_SPEED;
         boolean found = false;
-        for (TraumaGroup group : groups) {
+        for (TraumaGroup group : getGroups()) {
             if (!areConditionsMet(group)) {
                 continue;
             }
@@ -54,7 +63,7 @@ public class TraumaProfile implements IFearProfile {
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
         int result = DEFAULT_SEARCH_RADIUS;
         boolean found = false;
-        for (TraumaGroup group : groups) {
+        for (TraumaGroup group : getGroups()) {
             if (!areConditionsMet(group)) {
                 continue;
             }
@@ -81,7 +90,7 @@ public class TraumaProfile implements IFearProfile {
             return null;
         }
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
-        for (TraumaGroup group : groups) {
+        for (TraumaGroup group : getGroups()) {
             if (!areConditionsMet(group)) {
                 continue;
             }
@@ -112,7 +121,7 @@ public class TraumaProfile implements IFearProfile {
             return null;
         }
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
-        for (TraumaGroup group : groups) {
+        for (TraumaGroup group : getGroups()) {
             if (!areConditionsMet(group)) {
                 continue;
             }
@@ -135,7 +144,7 @@ public class TraumaProfile implements IFearProfile {
     @Override
     public boolean hasFearedEntities() {
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
-        for (TraumaGroup group : groups) {
+        for (TraumaGroup group : getGroups()) {
             if (!areConditionsMet(group)) {
                 continue;
             }
@@ -165,7 +174,7 @@ public class TraumaProfile implements IFearProfile {
             return com.example.firefearmod.manager.IFearProfile.VisibilityMode.LOOK_BASED;
         }
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
-        for (TraumaGroup group : groups) {
+        for (TraumaGroup group : getGroups()) {
             if (!areConditionsMet(group)) {
                 continue;
             }
@@ -186,13 +195,47 @@ public class TraumaProfile implements IFearProfile {
     }
 
     @Override
+    public boolean isMutualVision(Entity entity) {
+        ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+        if (entityId == null) return false;
+        ITraumaData data = TraumaCapability.get(mob).orElse(null);
+        for (TraumaGroup group : getGroups()) {
+            if (!areConditionsMet(group)) continue;
+            int stageIndex = getActiveStageIndex(group, data);
+            if (stageIndex < 0) continue;
+            for (int i = 0; i <= stageIndex; i++) {
+                TraumaGroup.TraumaStage stage = group.stages().get(i);
+                for (FearGroup.FearedEntityDefinition def : stage.fearedEntities()) {
+                    if (def.matches(entityId, entity)) return def.source().mutualVision();
+                }
+                for (FearGroup.FearSourceDefinition def : stage.fearedBlocks()) {
+                    if (def.matchesEntity(entityId, entity)) return def.mutualVision();
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean isMutualVision(ItemStack stack) {
+        FearGroup.FearSourceDefinition def = findFearedItem(stack);
+        return def != null && def.mutualVision();
+    }
+
+    @Override
+    public boolean isMutualVision(BlockState state, @Nullable BlockEntity be) {
+        FearGroup.FearSourceDefinition def = findFearedBlock(state, be);
+        return def != null && def.mutualVision();
+    }
+
+    @Override
     public boolean isFearedEntity(Entity entity) {
         ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
         if (entityId == null) {
             return false;
         }
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
-        for (TraumaGroup group : groups) {
+        for (TraumaGroup group : getGroups()) {
             if (!areConditionsMet(group)) {
                 continue;
             }
@@ -219,37 +262,81 @@ public class TraumaProfile implements IFearProfile {
 
     @Override
     public boolean shouldOverrideHostility(BlockState blockState, @Nullable BlockEntity blockEntity) {
-        if (com.example.firefearmod.integration.LureIntegration.isLuredByBlock(mob, blockState, blockEntity)) {
-            return true;
-        }
         FearGroup.FearSourceDefinition def = findFearedBlock(blockState, blockEntity);
         return def != null && def.fearOverride();
     }
 
     @Override
+    public boolean isTemptedBy(BlockState blockState, BlockEntity blockEntity) {
+        if (com.example.firefearmod.integration.LureIntegration.isLuredByBlock(mob, blockState, blockEntity)) {
+           return true;
+        }
+        FearGroup.FearSourceDefinition def = findFearedBlock(blockState, blockEntity);
+        return def != null && def.temptation();
+    }
+
+    @Override
     public boolean shouldOverrideHostility(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        
+        ITraumaData data = TraumaCapability.get(mob).orElse(null);
+        com.example.firefearmod.util.PerformanceCache cache = (data != null) ? data.getCache() : null;
+        String key = null;
+        
+        if (cache != null) {
+            key = stack.getDescriptionId() + (stack.hasTag() ? stack.getTag().toString() : "") + "_override";
+            Boolean cached = cache.getFeared(key);
+            if (cached != null) return cached;
+        }
+
+        FearGroup.FearSourceDefinition def = findFearedItem(stack);
+        boolean result = def != null && def.fearOverride();
+        
+        if (cache != null && key != null) {
+            cache.putFeared(key, result);
+        }
+        return result;
+    }
+
+    @Override
+    public boolean isTemptedBy(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+
+        ITraumaData data = TraumaCapability.get(mob).orElse(null);
+        com.example.firefearmod.util.PerformanceCache cache = (data != null) ? data.getCache() : null;
+        String key = null;
+
+        if (cache != null) {
+            key = stack.getDescriptionId() + (stack.hasTag() ? stack.getTag().toString() : "") + "_tempt";
+            Boolean cached = cache.getTempted(key);
+            if (cached != null) return cached;
+        }
+
         if (com.example.firefearmod.integration.LureIntegration.isLuredByItem(mob, stack)) {
+            if (cache != null && key != null) cache.putTempted(key, true);
             return true;
         }
         if (mob instanceof net.minecraft.world.entity.animal.Animal animal && animal.isFood(stack)) {
+            if (cache != null && key != null) cache.putTempted(key, true);
             return true;
         }
         FearGroup.FearSourceDefinition def = findFearedItem(stack);
-        return def != null && def.fearOverride();
+        boolean result = def != null && def.temptation();
+        
+        if (cache != null && key != null) {
+            cache.putTempted(key, result);
+        }
+        return result;
     }
 
     @Override
     public boolean shouldOverrideHostility(Entity entity) {
-        if (entity instanceof net.minecraft.world.entity.LivingEntity living && 
-            com.example.firefearmod.integration.LureIntegration.isLured(mob, living)) {
-            return true;
-        }
         ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
         if (entityId == null) {
             return false;
         }
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
-        for (TraumaGroup group : groups) {
+        for (TraumaGroup group : getGroups()) {
             if (!areConditionsMet(group)) {
                 continue;
             }
@@ -262,6 +349,37 @@ public class TraumaProfile implements IFearProfile {
                 for (FearGroup.FearedEntityDefinition def : stage.fearedEntities()) {
                     if (def.matches(entityId, entity)) {
                         return def.overrideHostility();
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean isTemptedBy(Entity entity) {
+        if (entity instanceof net.minecraft.world.entity.LivingEntity living && 
+            com.example.firefearmod.integration.LureIntegration.isLured(mob, living)) {
+            return true;
+        }
+        ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+        if (entityId == null) {
+            return false;
+        }
+        ITraumaData data = TraumaCapability.get(mob).orElse(null);
+        for (TraumaGroup group : getGroups()) {
+            if (!areConditionsMet(group)) {
+                continue;
+            }
+            int stageIndex = getActiveStageIndex(group, data);
+            if (stageIndex < 0) {
+                continue;
+            }
+            for (int i = 0; i <= stageIndex; i++) {
+                TraumaGroup.TraumaStage stage = group.stages().get(i);
+                for (FearGroup.FearedEntityDefinition def : stage.fearedEntities()) {
+                    if (def.matches(entityId, entity)) {
+                        if (def.source().temptation()) return true;
                     }
                 }
             }
@@ -347,13 +465,12 @@ public class TraumaProfile implements IFearProfile {
          ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
          double result = -1.0;
          
-         for (TraumaGroup group : groups) {
+         for (TraumaGroup group : getGroups()) {
              if (!areConditionsMet(group)) continue;
              int stageIndex = getActiveStageIndex(group, data);
              if (stageIndex < 0) continue;
              
              Double speed = null;
-             // Check entities
              if (entityId != null) {
                  for (int i = 0; i <= stageIndex; i++) {
                      TraumaGroup.TraumaStage stage = group.stages().get(i);
@@ -389,7 +506,7 @@ public class TraumaProfile implements IFearProfile {
          if (blockId == null) return fleeSpeed();
          double result = -1.0;
  
-         for (TraumaGroup group : groups) {
+         for (TraumaGroup group : getGroups()) {
              if (!areConditionsMet(group)) continue;
              int stageIndex = getActiveStageIndex(group, data);
              if (stageIndex < 0) continue;
@@ -420,7 +537,7 @@ public class TraumaProfile implements IFearProfile {
           if (itemId == null) return fleeSpeed();
           double result = -1.0;
  
-         for (TraumaGroup group : groups) {
+         for (TraumaGroup group : getGroups()) {
              if (!areConditionsMet(group)) continue;
              int stageIndex = getActiveStageIndex(group, data);
              if (stageIndex < 0) continue;

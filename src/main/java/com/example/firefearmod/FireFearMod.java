@@ -16,6 +16,9 @@ public class FireFearMod {
         ConfigHolder.setTargetSchemaVersion(MOD_VERSION);
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onConfigLoad);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, ConfigHolder.SPEC, "firefearmod-common.toml");
+        
+        // Optional Quantified-API integration
+        com.example.firefearmod.integration.QuantifiedIntegration.init();
     }
 
     public void onConfigLoad(final ModConfigEvent event) {

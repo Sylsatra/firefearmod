@@ -1,0 +1,21 @@
+{
+    "group_id": "guide_test:cow_simple_player",
+    "mobs": [
+        {
+            "id": "minecraft:cow"
+        }
+    ],
+    "stages": [
+        {
+            "flee_speed": 1.0,
+            "search_radius": 12,
+            "fears": [
+                {
+                    "type": "entity",
+                    "id": "minecraft:player",
+                    "visibility_mode": "LOOK_BASED"
+                }
+            ]
+        }
+    ]
+}

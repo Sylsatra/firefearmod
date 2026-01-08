@@ -1,0 +1,26 @@
+{
+    "group_id": "guide_test:cow_temptation",
+    "mobs": [
+        {
+            "id": "minecraft:cow"
+        }
+    ],
+    "stages": [
+        {
+            "flee_speed": 1.2,
+            "search_radius": 16,
+            "fears": [
+                {
+                    "type": "item",
+                    "id": "minecraft:wheat",
+                    "temptation": true
+                },
+                {
+                    "type": "item",
+                    "id": "minecraft:golden_carrot",
+                    "is_tempted_by": true
+                }
+            ]
+        }
+    ]
+}

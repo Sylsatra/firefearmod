@@ -63,6 +63,18 @@ public class FireFearGoal extends Goal {
             return false;
         }
         scanCooldown = ConfigHolder.SCAN_COOLDOWN_TICKS.get();
+        
+        Player nearest = mob.level().getNearestPlayer(mob, fearGroup.searchRadius());
+        if (nearest != null) {
+             boolean tempted = fearGroup.isTemptedBy(nearest) || fearGroup.isTemptedBy(nearest.getMainHandItem()) || fearGroup.isTemptedBy(nearest.getOffhandItem());
+             if (tempted) {
+                 boolean override = fearGroup.shouldOverrideHostility(nearest) || fearGroup.shouldOverrideHostility(nearest.getMainHandItem()) || fearGroup.shouldOverrideHostility(nearest.getOffhandItem());
+                 if (!override) {
+                     return false;
+                 }
+             }
+        }
+
         dangerPos = findNearestThreat();
         return dangerPos != null;
     }
@@ -71,15 +83,30 @@ public class FireFearGoal extends Goal {
     public boolean canContinueToUse() {
         if (dangerPos == null) return false;
         
-        // Immediate check for entity validity (prevents Creative/Spectator/Lure lag)
         if (dangerEntity != null) {
             if (!dangerEntity.isAlive()) return false;
             if (dangerEntity instanceof Player p && (p.isCreative() || p.isSpectator())) return false;
-            if (fearGroup.shouldOverrideHostility(dangerEntity)) return false;
-            if (!fearGroup.isFearedEntity(dangerEntity)) {
-                // Check if they are still holding a fear source
-                if (dangerEntity instanceof Player p && getPlayerHeldFearSource(p) == null) return false;
-                else if (!(dangerEntity instanceof Player)) return false;
+            
+            boolean isTempted = fearGroup.isTemptedBy(dangerEntity) || 
+                                (dangerEntity instanceof Player p && (fearGroup.isTemptedBy(p.getMainHandItem()) || fearGroup.isTemptedBy(p.getOffhandItem())));
+            
+            boolean isOverride = fearGroup.shouldOverrideHostility(dangerEntity) || 
+                                 (dangerEntity instanceof net.minecraft.world.entity.LivingEntity le && 
+                                  (fearGroup.shouldOverrideHostility(le.getMainHandItem()) || fearGroup.shouldOverrideHostility(le.getOffhandItem())));
+
+            if (isTempted && !isOverride) {
+                return false;
+            }
+            
+            if (!isOverride && !fearGroup.isFearedEntity(dangerEntity)) {
+                if (dangerEntity instanceof net.minecraft.world.entity.LivingEntity le) {
+                    FearSourceDefinition held = getHeldFearSource(le);
+                    if (held == null) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
             }
         }
 
@@ -120,14 +147,20 @@ public class FireFearGoal extends Goal {
     public void tick() {
         if (dangerPos == null) return;
 
-        // Reactive scan for state changes (Lures/Creative)
         if (mob.tickCount % 5 == 0) {
             Vec3 refreshed = findNearestThreat();
             if (refreshed != null) {
                 dangerPos = refreshed;
-            } else {
-                // If threat is gone completely (skipped in findNearestThreat), stop immediately
-                if (dangerEntity != null && (dangerEntity.isRemoved() || (dangerEntity instanceof Player p && (p.isCreative() || p.isSpectator())) || fearGroup.shouldOverrideHostility(dangerEntity))) {
+            } else if (dangerEntity != null) {
+                boolean isTempted = fearGroup.isTemptedBy(dangerEntity) || 
+                                    (dangerEntity instanceof net.minecraft.world.entity.LivingEntity le && 
+                                     (fearGroup.isTemptedBy(le.getMainHandItem()) || fearGroup.isTemptedBy(le.getOffhandItem())));
+                
+                boolean isOverride = fearGroup.shouldOverrideHostility(dangerEntity) || 
+                                     (dangerEntity instanceof net.minecraft.world.entity.LivingEntity le && 
+                                      (fearGroup.shouldOverrideHostility(le.getMainHandItem()) || fearGroup.shouldOverrideHostility(le.getOffhandItem())));
+
+                if (dangerEntity.isRemoved() || (dangerEntity instanceof Player p && (p.isCreative() || p.isSpectator())) || (isTempted && !isOverride)) {
                     stop();
                     return;
                 }
@@ -258,14 +291,16 @@ public class FireFearGoal extends Goal {
                 if (!blockState.isAir()) {
                     BlockEntity blockEntity = blockState.hasBlockEntity() ? level.getBlockEntity(checkPos) : null;
                     
+                    boolean isTempted = fearGroup.isTemptedBy(blockState, blockEntity);
                     boolean isOverride = fearGroup.shouldOverrideHostility(blockState, blockEntity);
-                    FearSourceDefinition blockDef = fearGroup.findFearedBlock(blockState, blockEntity);
                     
                     if (isOverride) {
                         anyOverrideActive = true;
+                    } else if (isTempted) {
                         continue;
                     }
                     
+                    FearSourceDefinition blockDef = fearGroup.findFearedBlock(blockState, blockEntity);
                     if (blockDef != null) {
                         Vec3 threatPos = Vec3.atCenterOf(checkPos);
                         if (VisionHelper.canSeePosition(mob, threatPos, true)) {
@@ -292,25 +327,67 @@ public class FireFearGoal extends Goal {
             for (Entity entity : entities) {
                 if (entity instanceof Player p && (p.isCreative() || p.isSpectator())) continue;
                 
-                boolean isOverride = fearGroup.shouldOverrideHostility(entity);
-                if (isOverride) {
-                    anyOverrideActive = true;
+                if (fearGroup.isTemptedBy(entity)) continue;
+                
+                boolean isTemptedByHeldItem = false;
+                boolean isOverrideByHeldItem = false;
+                FearSourceDefinition heldFear = null;
+                
+                if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
+                    boolean shouldCheckHeldItems = entity instanceof Player;
+                    if (!shouldCheckHeldItems && ConfigHolder.CHECK_ALL_MOB_HELD_ITEMS.get()) {
+                        int checkRadius = ConfigHolder.MOB_HELD_ITEM_CHECK_RADIUS.get();
+                        Player nearestPlayer = level.getNearestPlayer(entity, checkRadius);
+                        shouldCheckHeldItems = nearestPlayer != null;
+                    }
+                    
+                    if (shouldCheckHeldItems) {
+                        if (fearGroup.isTemptedBy(living.getMainHandItem()) || fearGroup.isTemptedBy(living.getOffhandItem())) {
+                            isTemptedByHeldItem = true;
+                        }
+                        if (fearGroup.shouldOverrideHostility(living.getMainHandItem()) || fearGroup.shouldOverrideHostility(living.getOffhandItem())) {
+                            isOverrideByHeldItem = true;
+                        }
+                        heldFear = getHeldFearSource(living);
+                    }
+                }
+                
+                if (isTemptedByHeldItem && !isOverrideByHeldItem) {
                     continue;
                 }
 
-                if (!fearGroup.isFearedEntity(entity)) {
+                boolean isOverride = fearGroup.shouldOverrideHostility(entity) || isOverrideByHeldItem;
+                if (isOverride) {
+                    anyOverrideActive = true;
+                }
+
+                boolean isFeared = fearGroup.isFearedEntity(entity);
+                
+                if (!isFeared && heldFear == null) {
                     continue;
                 }
-                IFearProfile.VisibilityMode mode = fearGroup.getEntityVisibilityMode(entity);
+                
+                IFearProfile.VisibilityMode mode = isFeared ? fearGroup.getEntityVisibilityMode(entity) : IFearProfile.VisibilityMode.LOOK_BASED;
+                
+                boolean mutualNeeded = fearGroup.isMutualVision(entity) || (heldFear != null && heldFear.mutualVision());
+                if (isOverride && !mutualNeeded) {
+                    mode = IFearProfile.VisibilityMode.ALWAYS;
+                }
+
                 boolean visible;
                 if (mode == IFearProfile.VisibilityMode.ALWAYS) {
-                    visible = VisionHelper.canSeeEntity(mob, entity, true);
+                    visible = VisionHelper.hasLineOfSight(mob, entity);
                 } else {
                     visible = isMutuallyVisible(entity);
                 }
                 if (!visible) {
                     continue;
                 }
+                
+                if (heldFear != null && heldFear.fearOverride()) {
+                    anyOverrideActive = true;
+                }
+                
                 Vec3 center = entity.position().add(0.0, entity.getBbHeight() * 0.5, 0.0);
                 double distSqr = mob.position().distanceToSqr(center);
                 if (distSqr < bestPriority) {
@@ -321,7 +398,16 @@ public class FireFearGoal extends Goal {
                 }
                 clusterSum = clusterSum.add(center);
                 threatCount++;
-                speedAccumulator += fearGroup.getFleeSpeedFor(entity);
+                
+                if (isFeared) {
+                    speedAccumulator += fearGroup.getFleeSpeedFor(entity);
+                } else if (heldFear != null && entity instanceof net.minecraft.world.entity.LivingEntity living) {
+                    ItemStack stack = living.getMainHandItem();
+                    if (fearGroup.findFearedItem(stack) == null) stack = living.getOffhandItem();
+                    speedAccumulator += fearGroup.getFleeSpeedFor(stack);
+                } else {
+                    speedAccumulator += fearGroup.fleeSpeed();
+                }
                 speedCount++;
             }
         }
@@ -331,31 +417,46 @@ public class FireFearGoal extends Goal {
         for (Player player : players) {
             if (player.isCreative() || player.isSpectator()) continue;
 
-            boolean isOverride = fearGroup.shouldOverrideHostility(player);
+            if (player.isCreative() || player.isSpectator()) continue;
+
+            if (fearGroup.isTemptedBy(player)) continue;
+            
+            boolean isTemptedByHeldItem = fearGroup.isTemptedBy(player.getMainHandItem()) || fearGroup.isTemptedBy(player.getOffhandItem());
+            boolean isOverrideByHeldItem = fearGroup.shouldOverrideHostility(player.getMainHandItem()) || fearGroup.shouldOverrideHostility(player.getOffhandItem());
+            
+            if (isTemptedByHeldItem && !isOverrideByHeldItem) {
+                 continue;
+            }
+
+            boolean isOverride = fearGroup.shouldOverrideHostility(player) || isOverrideByHeldItem;
             if (isOverride) {
                 anyOverrideActive = true;
-                continue;
             }
 
             boolean isFeared = fearGroup.isFearedEntity(player);
-            FearSourceDefinition heldFear = isFeared ? null : getPlayerHeldFearSource(player);
+            FearSourceDefinition heldFear = isFeared ? null : getHeldFearSource(player);
 
             if (!isFeared && heldFear == null) {
                 continue;
             }
 
-            IFearProfile.VisibilityMode mode = isFeared ? fearGroup.getEntityVisibilityMode(player) : IFearProfile.VisibilityMode.LOOK_BASED;
-            boolean visible;
-            if (mode == IFearProfile.VisibilityMode.ALWAYS) {
-                visible = VisionHelper.canSeeEntity(mob, player, true);
-            } else {
-                visible = isMutuallyVisible(player);
-            }
+                IFearProfile.VisibilityMode mode = (isFeared) ? fearGroup.getEntityVisibilityMode(player) : IFearProfile.VisibilityMode.LOOK_BASED;
+                
+                boolean mutualNeeded = fearGroup.isMutualVision(player) || (heldFear != null && heldFear.mutualVision());
+                if (isOverride && !mutualNeeded) {
+                    mode = IFearProfile.VisibilityMode.ALWAYS;
+                }
+
+                boolean visible;
+                if (mode == IFearProfile.VisibilityMode.ALWAYS) {
+                    visible = VisionHelper.hasLineOfSight(mob, player);
+                } else {
+                    visible = isMutuallyVisible(player);
+                }
 
             if (visible) {
                  if (heldFear != null && heldFear.fearOverride()) {
                      anyOverrideActive = true;
-                     continue; 
                  }
                  
                  double distSqr = mob.distanceToSqr(player);
@@ -455,13 +556,13 @@ public class FireFearGoal extends Goal {
     }
 
     @Nullable
-    private FearSourceDefinition getPlayerHeldFearSource(Player player) {
-        FearSourceDefinition main = fearGroup.findFearedItem(player.getMainHandItem());
-        if (main != null) {
-            return main;
-        }
-        return fearGroup.findFearedItem(player.getOffhandItem());
+private FearSourceDefinition getHeldFearSource(net.minecraft.world.entity.LivingEntity living) {
+    FearSourceDefinition main = fearGroup.findFearedItem(living.getMainHandItem());
+    if (main != null) {
+        return main;
     }
+    return fearGroup.findFearedItem(living.getOffhandItem());
+}    
 
     private void suppressHostileTarget() {
         if (mob.getTarget() != null) {

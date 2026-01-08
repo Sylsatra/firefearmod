@@ -1,0 +1,22 @@
+{
+    "group_id": "guide_test:zombie_mutual_vision",
+    "mobs": [
+        {
+            "id": "minecraft:zombie"
+        }
+    ],
+    "stages": [
+        {
+            "flee_speed": 1.6,
+            "search_radius": 16,
+            "fears": [
+                {
+                    "type": "item",
+                    "id": "minecraft:diamond_sword",
+                    "fear_override": true,
+                    "mutual_vision": true
+                }
+            ]
+        }
+    ]
+}

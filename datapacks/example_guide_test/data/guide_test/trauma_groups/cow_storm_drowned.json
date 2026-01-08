@@ -1,0 +1,27 @@
+{
+    "group_id": "guide_test:cow_storm_drowned",
+    "conditions": [
+        {
+            "type": "is_raining",
+            "value": true
+        }
+    ],
+    "mobs": [
+        {
+            "id": "minecraft:cow"
+        }
+    ],
+    "stages": [
+        {
+            "flee_speed": 1.5,
+            "search_radius": 20,
+            "fears": [
+                {
+                    "type": "entity",
+                    "id": "minecraft:drowned",
+                    "visibility_mode": "ALWAYS"
+                }
+            ]
+        }
+    ]
+}

@@ -33,9 +33,16 @@ public interface IFearProfile {
 
     boolean shouldOverrideHostility(Entity entity);
 
+    default boolean isTemptedBy(Entity entity) { return false; }
+    default boolean isTemptedBy(ItemStack stack) { return false; }
+    default boolean isTemptedBy(BlockState state, BlockEntity be) { return false; }
+
     default double getFleeSpeedFor(Entity entity) { return fleeSpeed(); }
     default double getFleeSpeedFor(BlockState state) { return fleeSpeed(); }
     default double getFleeSpeedFor(ItemStack stack) { return fleeSpeed(); }
 
     VisibilityMode getEntityVisibilityMode(Entity entity);
+    boolean isMutualVision(Entity entity);
+    boolean isMutualVision(ItemStack stack);
+    boolean isMutualVision(BlockState state, @Nullable BlockEntity be);
 }

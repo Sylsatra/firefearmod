@@ -1,0 +1,26 @@
+{
+    "group_id": "guide_test:zombie_torch_fear",
+    "mobs": [
+        {
+            "id": "minecraft:zombie"
+        }
+    ],
+    "stages": [
+        {
+            "flee_speed": 1.6,
+            "search_radius": 16,
+            "fears": [
+                {
+                    "type": "item",
+                    "id": "minecraft:netherite_sword",
+                    "fear_override": true
+                },
+                {
+                    "type": "item",
+                    "id": "minecraft:lantern",
+                    "is_tempted_by": true
+                }
+            ]
+        }
+    ]
+}

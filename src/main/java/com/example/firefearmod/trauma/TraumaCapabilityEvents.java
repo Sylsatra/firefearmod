@@ -14,4 +14,11 @@ public class TraumaCapabilityEvents {
             event.addCapability(TraumaCapability.KEY, new TraumaCapability.Provider());
         }
     }
+
+    @SubscribeEvent
+    public static void onLivingTick(net.minecraftforge.event.entity.living.LivingEvent.LivingTickEvent event) {
+        if (!event.getEntity().level().isClientSide && event.getEntity() instanceof Mob mob) {
+            TraumaCapability.get(mob).ifPresent(ITraumaData::tick);
+        }
+    }
 }
