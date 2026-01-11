@@ -30,6 +30,7 @@ public record FearGroup(
         double fleeSpeed,
         int searchRadius,
         List<MobDefinition> mobs,
+        List<MobDefinition> blacklist,
         List<FearSourceDefinition> fearedBlocks,
         List<FearSourceDefinition> fearedItems,
         List<FearedEntityDefinition> fearedEntities
@@ -41,6 +42,10 @@ public record FearGroup(
         int searchRadius = config.getOptional("search_radius").map(o -> ((Number) o).intValue()).orElse(8);
         List<MobDefinition> mobs = ((List<Config>) config.get("mobs")).stream()
                 .map(MobDefinition::fromConfig).collect(Collectors.toList());
+        List<MobDefinition> blacklist = config.getOptional("blacklist")
+                .map(o -> (List<Config>) o)
+                .map(list -> list.stream().map(MobDefinition::fromConfig).collect(Collectors.toList()))
+                .orElse(List.of());
         List<FearSourceDefinition> fearedBlocks = ((List<Config>) config.get("feared_blocks")).stream()
                 .map(FearSourceDefinition::fromConfig).collect(Collectors.toList());
         List<FearSourceDefinition> fearedItems = ((List<Config>) config.get("feared_items")).stream()
@@ -49,7 +54,7 @@ public record FearGroup(
                 .map(o -> (List<Config>) o)
                 .map(list -> list.stream().map(FearedEntityDefinition::fromConfig).collect(Collectors.toList()))
                 .orElse(List.of());
-        return new FearGroup(groupId, fleeSpeed, searchRadius, mobs, fearedBlocks, fearedItems, fearedEntities);
+        return new FearGroup(groupId, fleeSpeed, searchRadius, mobs, blacklist, fearedBlocks, fearedItems, fearedEntities);
     }
 
     public int getMatchScore(Mob mob) {
@@ -172,7 +177,22 @@ public record FearGroup(
         return def != null && def.mutualVision();
     }
 
-    public record MobDefinition(ResourceLocation id, @Nullable String customName, @Nullable CompoundTag nbt) {
+    public boolean isBlacklisted(Mob mob) {
+        ResourceLocation mobId = ForgeRegistries.ENTITY_TYPES.getKey(mob.getType());
+        if (mobId == null) return false;
+        for (MobDefinition def : blacklist) {
+            if (def.getMatchScore(mob, mobId) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public record MobDefinition(ResourceLocation id, @Nullable String customName, @Nullable CompoundTag nbt, List<NbtRule> nbtRules) {
+        public MobDefinition(ResourceLocation id, @Nullable String customName, @Nullable CompoundTag nbt) {
+            this(id, customName, nbt, java.util.Collections.emptyList());
+        }
+
         public static MobDefinition fromConfig(Config config) {
             ResourceLocation id = new ResourceLocation((String)config.get("id"));
             String customName = config.getOptional("custom_name").map(String::valueOf).orElse(null);
@@ -181,7 +201,11 @@ public record FearGroup(
                     return TagParser.parseTag((String) nbtStr);
                 } catch (Exception e) { throw new IllegalArgumentException("Invalid NBT: " + e.getMessage()); }
             }).orElse(null);
-            return new MobDefinition(id, customName, nbt);
+            List<NbtRule> rules = config.getOptional("nbt_rules")
+                    .map(o -> (List<Config>) o)
+                    .map(list -> list.stream().map(NbtRule::fromConfig).collect(Collectors.toList()))
+                    .orElse(List.of());
+            return new MobDefinition(id, customName, nbt, rules);
         }
 
         public int getMatchScore(Mob mob, ResourceLocation mobId) {
@@ -190,13 +214,26 @@ public record FearGroup(
             boolean nameMatch = (this.customName == null) || (mob.hasCustomName() && mob.getName().getString().equals(this.customName));
             boolean nbtMatch = (this.nbt == null) || (NbtUtils.compareNbt(this.nbt, mob.saveWithoutId(new CompoundTag()), true));
 
-            if (!nameMatch || !nbtMatch) {
+            boolean rulesMatch = true;
+            if (!nbtRules.isEmpty()) {
+                CompoundTag mobTag = new CompoundTag();
+                mob.saveWithoutId(mobTag);
+                for (NbtRule rule : nbtRules) {
+                    if (!rule.matches(mobTag)) {
+                        rulesMatch = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!nameMatch || !nbtMatch || !rulesMatch) {
                 return -1;
             }
 
             int score = 0;
             if (this.customName != null) score += 2;
             if (this.nbt != null) score += 1;
+            if (!this.nbtRules.isEmpty()) score += this.nbtRules.size();
             return score;
         }
     }

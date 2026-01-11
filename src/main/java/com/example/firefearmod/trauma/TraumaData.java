@@ -13,6 +13,9 @@ public class TraumaData implements ITraumaData {
     private final Map<ResourceLocation, Integer> stages = new HashMap<>();
     private final com.example.firefearmod.util.PerformanceCache cache = new com.example.firefearmod.util.PerformanceCache();
     private int tickCounter = 0;
+    
+    private int cachedDataVersion = -1;
+    private java.util.List<ResourceLocation> cachedGroups = null;
 
     @Override
     public void tick() {
@@ -61,6 +64,26 @@ public class TraumaData implements ITraumaData {
         int cap = maxStages - 1;
         stages.replaceAll((id, value) -> Math.max(0, Math.min(value, cap)));
         stages.entrySet().removeIf(e -> e.getValue() <= 0);
+    }
+
+    @Override
+    public int getCachedDataVersion() {
+        return cachedDataVersion;
+    }
+
+    @Override
+    public void setCachedDataVersion(int version) {
+        this.cachedDataVersion = version;
+    }
+
+    @Override
+    public java.util.List<ResourceLocation> getCachedGroups() {
+        return cachedGroups;
+    }
+
+    @Override
+    public void setCachedGroups(java.util.List<ResourceLocation> groups) {
+        this.cachedGroups = groups;
     }
 
     public CompoundTag serializeNBT() {

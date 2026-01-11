@@ -16,4 +16,10 @@ public interface ITraumaData {
     void tick();
 
     com.example.firefearmod.util.PerformanceCache getCache();
+
+    int getCachedDataVersion();
+    void setCachedDataVersion(int version);
+
+    java.util.List<ResourceLocation> getCachedGroups();
+    void setCachedGroups(java.util.List<ResourceLocation> groups);
 }

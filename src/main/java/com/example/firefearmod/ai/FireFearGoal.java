@@ -44,6 +44,8 @@ public class FireFearGoal extends Goal {
     private IFearProfile.VisibilityMode dangerVisibilityMode = IFearProfile.VisibilityMode.LOOK_BASED;
     private double activeFleeSpeed = 1.2;
     private Entity dangerEntity;
+    private Vec3 lastScanPos = null;
+    private boolean lastScanFoundBlockDanger = false;
 
     private static final int REPATH_INTERVAL_TICKS = 12;
     private static final int MAX_LOST_SIGHT_TICKS = 40;
@@ -62,6 +64,12 @@ public class FireFearGoal extends Goal {
             scanCooldown--;
             return false;
         }
+        
+        if (mob.level().getNearestPlayer(mob, 64.0) == null) {
+            scanCooldown = 20; 
+            return false;
+        }
+
         scanCooldown = ConfigHolder.SCAN_COOLDOWN_TICKS.get();
         
         Player nearest = mob.level().getNearestPlayer(mob, fearGroup.searchRadius());
@@ -75,7 +83,7 @@ public class FireFearGoal extends Goal {
              }
         }
 
-        dangerPos = findNearestThreat();
+        dangerPos = findNearestThreat(nearest);
         return dangerPos != null;
     }
 
@@ -147,8 +155,14 @@ public class FireFearGoal extends Goal {
     public void tick() {
         if (dangerPos == null) return;
 
-        if (mob.tickCount % 5 == 0) {
-            Vec3 refreshed = findNearestThreat();
+            int interval = getUpdateInterval();
+            if ((mob.tickCount + mob.getId()) % interval == 0) {
+                Player nearest = mob.level().getNearestPlayer(mob, 64.0);
+                if (nearest == null) {
+                    stop();
+                    return;
+                }
+                Vec3 refreshed = findNearestThreat(nearest);
             if (refreshed != null) {
                 dangerPos = refreshed;
             } else if (dangerEntity != null) {
@@ -168,7 +182,7 @@ public class FireFearGoal extends Goal {
         }
 
         if (dangerVisibilityMode == IFearProfile.VisibilityMode.ALWAYS) {
-            Vec3 refreshed = findNearestThreat();
+            Vec3 refreshed = findNearestThreat(null);
             if (refreshed != null) {
                 dangerPos = refreshed;
                 lostSightTicks = 0;
@@ -181,7 +195,7 @@ public class FireFearGoal extends Goal {
             }
         } else {
             if (!VisionHelper.canSeePosition(mob, dangerPos, true)) {
-                Vec3 refreshed = findNearestThreat();
+                Vec3 refreshed = findNearestThreat(null);
                 if (refreshed != null) {
                     dangerPos = refreshed;
                     lostSightTicks = 0;
@@ -270,7 +284,7 @@ public class FireFearGoal extends Goal {
         }
     }
 
-    private Vec3 findNearestThreat() {
+    private Vec3 findNearestThreat(@Nullable Player nearestPlayer) {
         Level level = mob.level();
         double bestPriority = Double.MAX_VALUE;
         Vec3 closestThreatPos = null;
@@ -283,8 +297,14 @@ public class FireFearGoal extends Goal {
         boolean anyOverrideActive = false;
 
         int radius = fearGroup.searchRadius();
+        boolean foundBlock = false;
 
-        if (canCheckBlocksNow() && !shouldSkipBlockCheckBecauseFireTick()) {
+        boolean skipBlockScan = false;
+        if (lastScanPos != null && mob.position().distanceToSqr(lastScanPos) < 0.01 && !lastScanFoundBlockDanger) {
+            skipBlockScan = true;
+        }
+
+        if (!skipBlockScan && canCheckBlocksNow(nearestPlayer) && !shouldSkipBlockCheckBecauseFireTick()) {
             BlockPos mobPos = mob.blockPosition();
             for (BlockPos checkPos : BlockPos.betweenClosed(mobPos.offset(-radius, -radius / 2, -radius), mobPos.offset(radius, radius / 2, radius))) {
                 BlockState blockState = level.getBlockState(checkPos);
@@ -314,19 +334,23 @@ public class FireFearGoal extends Goal {
                             threatCount++;
                             speedAccumulator += fearGroup.getFleeSpeedFor(blockState);
                             speedCount++;
+                            foundBlock = true;
                         }
                     }
                 }
             }
         }
+        
+        lastScanPos = mob.position();
+        lastScanFoundBlockDanger = foundBlock;
 
         if (fearGroup.hasFearedEntities()) {
             double vertical = Math.max(3.0, radius * 0.75);
             AABB entityBox = mob.getBoundingBox().inflate(radius, vertical, radius);
             List<Entity> entities = level.getEntities(mob, entityBox, entity -> entity != mob);
             for (Entity entity : entities) {
-                if (entity instanceof Player p && (p.isCreative() || p.isSpectator())) continue;
-                
+                if (entity instanceof Player) continue; 
+
                 if (fearGroup.isTemptedBy(entity)) continue;
                 
                 boolean isTemptedByHeldItem = false;
@@ -334,21 +358,17 @@ public class FireFearGoal extends Goal {
                 FearSourceDefinition heldFear = null;
                 
                 if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
-                    boolean shouldCheckHeldItems = entity instanceof Player;
-                    if (!shouldCheckHeldItems && ConfigHolder.CHECK_ALL_MOB_HELD_ITEMS.get()) {
+                     if (ConfigHolder.CHECK_ALL_MOB_HELD_ITEMS.get()) {
                         int checkRadius = ConfigHolder.MOB_HELD_ITEM_CHECK_RADIUS.get();
-                        Player nearestPlayer = level.getNearestPlayer(entity, checkRadius);
-                        shouldCheckHeldItems = nearestPlayer != null;
-                    }
-                    
-                    if (shouldCheckHeldItems) {
-                        if (fearGroup.isTemptedBy(living.getMainHandItem()) || fearGroup.isTemptedBy(living.getOffhandItem())) {
-                            isTemptedByHeldItem = true;
+                        if (nearestPlayer != null && entity.distanceToSqr(nearestPlayer) <= checkRadius * checkRadius) {
+                             if (fearGroup.isTemptedBy(living.getMainHandItem()) || fearGroup.isTemptedBy(living.getOffhandItem())) {
+                                 isTemptedByHeldItem = true;
+                             }
+                             if (fearGroup.shouldOverrideHostility(living.getMainHandItem()) || fearGroup.shouldOverrideHostility(living.getOffhandItem())) {
+                                 isOverrideByHeldItem = true;
+                             }
+                             heldFear = getHeldFearSource(living);
                         }
-                        if (fearGroup.shouldOverrideHostility(living.getMainHandItem()) || fearGroup.shouldOverrideHostility(living.getOffhandItem())) {
-                            isOverrideByHeldItem = true;
-                        }
-                        heldFear = getHeldFearSource(living);
                     }
                 }
                 
@@ -412,11 +432,14 @@ public class FireFearGoal extends Goal {
             }
         }
 
-        AABB playerBox = mob.getBoundingBox().inflate(radius, radius * 0.75, radius);
-        List<Player> players = level.getEntitiesOfClass(Player.class, playerBox);
-        for (Player player : players) {
-            if (player.isCreative() || player.isSpectator()) continue;
+        double vertical = Math.max(3.0, radius * 0.75);
+        AABB playerBox = mob.getBoundingBox().inflate(radius, vertical, radius);
+        List<Player> players = java.util.Collections.emptyList();
+        if (nearestPlayer != null && mob.distanceToSqr(nearestPlayer) <= (Math.max(radius, vertical) * Math.max(radius, vertical))) {
+             players = level.getEntitiesOfClass(Player.class, playerBox);
+        }
 
+        for (Player player : players) {
             if (player.isCreative() || player.isSpectator()) continue;
 
             if (fearGroup.isTemptedBy(player)) continue;
@@ -590,9 +613,9 @@ private FearSourceDefinition getHeldFearSource(net.minecraft.world.entity.Living
         targetingSuppressed = false;
     }
 
-    private boolean canCheckBlocksNow() {
-        AABB checkArea = mob.getBoundingBox().inflate(ConfigHolder.BLOCK_CHECK_PLAYER_RADIUS.get());
-        return !mob.level().getEntitiesOfClass(Player.class, checkArea).isEmpty();
+    private boolean canCheckBlocksNow(Player nearest) {
+        if (nearest == null) return false;
+        return mob.distanceToSqr(nearest) < (ConfigHolder.BLOCK_CHECK_PLAYER_RADIUS.get() * ConfigHolder.BLOCK_CHECK_PLAYER_RADIUS.get());
     }
 
     private boolean shouldSkipBlockCheckBecauseFireTick() {
@@ -600,5 +623,17 @@ private FearSourceDefinition getHeldFearSource(net.minecraft.world.entity.Living
             return false;
         }
         return !mob.level().getGameRules().getBoolean(GameRules.RULE_DOFIRETICK);
+    }
+
+    private int getUpdateInterval() {
+        float tickTime = mob.level().getServer().getAverageTickTime();
+        if (tickTime > 100.0f) {
+            return 1000; 
+        } else if (tickTime > 66.0f) {
+            return 20;
+        } else if (tickTime > 50.0f) {
+            return 10;
+        }
+        return 5;
     }
 }

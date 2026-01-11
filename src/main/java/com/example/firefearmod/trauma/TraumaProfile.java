@@ -18,20 +18,16 @@ public class TraumaProfile implements IFearProfile {
     private static final int DEFAULT_SEARCH_RADIUS = 8;
 
     private final Mob mob;
-    private final List<ResourceLocation> groupIds;
 
-    public TraumaProfile(Mob mob, List<TraumaGroup> groups) {
+    public TraumaProfile(Mob mob) {
         this.mob = mob;
-        this.groupIds = groups.stream().map(TraumaGroup::id).toList();
     }
     
     private List<TraumaGroup> getGroups() {
-        List<TraumaGroup> list = new java.util.ArrayList<>();
-        for (ResourceLocation id : groupIds) {
-            TraumaGroup g = TraumaGroupManager.getGroup(id);
-            if (g != null) list.add(g);
-        }
-        return list;
+        ITraumaData data = TraumaCapability.get(mob).orElse(null);
+        if (data == null) return java.util.Collections.emptyList();
+        
+        return TraumaGroupManager.getOrRefreshGroups(mob, data);
     }
 
     @Override

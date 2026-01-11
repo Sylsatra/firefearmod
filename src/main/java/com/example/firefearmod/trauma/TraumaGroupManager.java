@@ -34,8 +34,13 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
     private static final Logger LOGGER = LogManager.getLogger();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String FOLDER = "trauma_groups";
+    private static int dataVersion = 0;
 
     private static final Map<ResourceLocation, TraumaGroup> GROUPS = new HashMap<>();
+
+    public static int getDataVersion() {
+        return dataVersion;
+    }
 
     public TraumaGroupManager() {
         super(GSON, FOLDER);
@@ -44,6 +49,8 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
     @Override
     protected void apply(Map<ResourceLocation, JsonElement> jsons, ResourceManager resourceManager, ProfilerFiller profiler) {
         GROUPS.clear();
+        dataVersion++;
+        LOGGER.info("TraumaGroupManager applying changes. New dataVersion: {}", dataVersion);
         int maxStages = ConfigHolder.MAX_TRAUMA_STAGES_PER_GROUP.get();
         for (Map.Entry<ResourceLocation, JsonElement> entry : jsons.entrySet()) {
             ResourceLocation fileId = entry.getKey();
@@ -53,7 +60,8 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
                 ResourceLocation groupId = new ResourceLocation(groupIdStr);
                 double defaultWitnessRadius = obj.has("default_witness_radius") ? GsonHelper.getAsDouble(obj, "default_witness_radius") : 16.0D;
 
-                List<FearGroup.MobDefinition> mobs = parseMobs(obj, groupId);
+                List<FearGroup.MobDefinition> mobs = parseMobs(obj, groupId, "mobs");
+                List<FearGroup.MobDefinition> blacklist = parseMobs(obj, groupId, "blacklist");
                 List<TraumaGroup.TraumaStage> stages = parseStages(obj, groupId, maxStages);
                 List<TraumaGroup.TraumaCondition> conditions = parseConditions(obj, groupId);
 
@@ -62,7 +70,7 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
                     continue;
                 }
 
-                TraumaGroup group = new TraumaGroup(groupId, mobs, defaultWitnessRadius, stages, conditions);
+                TraumaGroup group = new TraumaGroup(groupId, mobs, blacklist, defaultWitnessRadius, stages, conditions);
                 GROUPS.put(groupId, group);
             } catch (Exception e) {
                 LOGGER.error("Failed to parse trauma group JSON {}: {}", fileId, e.getMessage());
@@ -71,13 +79,15 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
         LOGGER.info("Loaded {} trauma groups.", GROUPS.size());
     }
 
-    private static List<FearGroup.MobDefinition> parseMobs(JsonObject root, ResourceLocation groupId) {
+    private static List<FearGroup.MobDefinition> parseMobs(JsonObject root, ResourceLocation groupId, String memberName) {
         List<FearGroup.MobDefinition> result = new ArrayList<>();
-        if (!root.has("mobs")) {
-            LOGGER.warn("Trauma group '{}' is missing 'mobs' array", groupId);
+        if (!root.has(memberName)) {
+            if ("mobs".equals(memberName)) {
+                LOGGER.warn("Trauma group '{}' is missing '{}' array", groupId, memberName);
+            }
             return result;
         }
-        JsonArray array = GsonHelper.getAsJsonArray(root, "mobs");
+        JsonArray array = GsonHelper.getAsJsonArray(root, memberName);
         for (JsonElement element : array) {
             JsonObject obj = GsonHelper.convertToJsonObject(element, "mob");
             String idStr = GsonHelper.getAsString(obj, "id");
@@ -92,7 +102,14 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
                     LOGGER.error("Failed to parse NBT for mob definition in trauma group '{}': {}", groupId, e.getMessage());
                 }
             }
-            result.add(new FearGroup.MobDefinition(id, customName, nbt));
+            List<com.example.firefearmod.manager.NbtRule> rules = new ArrayList<>();
+            if (obj.has("nbt_rules")) {
+                JsonArray rulesArray = GsonHelper.getAsJsonArray(obj, "nbt_rules");
+                for (JsonElement ruleEl : rulesArray) {
+                    rules.add(com.example.firefearmod.manager.NbtRule.fromJson(GsonHelper.convertToJsonObject(ruleEl, "nbt_rule")));
+                }
+            }
+            result.add(new FearGroup.MobDefinition(id, customName, nbt, rules));
         }
         return result;
     }
@@ -355,6 +372,16 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
         List<TraumaGroup> result = new ArrayList<>();
         for (TraumaGroup group : GROUPS.values()) {
             int bestScore = -1;
+            
+            boolean blacklisted = false;
+            for (FearGroup.MobDefinition def : group.blacklist()) {
+                if (def.getMatchScore(mob, mobId) >= 0) {
+                    blacklisted = true;
+                    break;
+                }
+            }
+            if (blacklisted) continue;
+
             for (FearGroup.MobDefinition def : group.mobs()) {
                 int score = def.getMatchScore(mob, mobId);
                 if (score > bestScore) {
@@ -377,6 +404,12 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
         if (mobId == null) {
             return false;
         }
+        for (FearGroup.MobDefinition def : group.blacklist()) {
+             if (def.getMatchScore(mob, mobId) >= 0) {
+                 return false;
+             }
+        }
+
         int bestScore = -1;
         for (FearGroup.MobDefinition def : group.mobs()) {
             int score = def.getMatchScore(mob, mobId);
@@ -385,5 +418,28 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
             }
         }
         return bestScore >= 0;
+    }
+
+    public static List<TraumaGroup> getOrRefreshGroups(Mob mob, ITraumaData data) {
+        int currentDataVersion = getDataVersion();
+        if (data.getCachedDataVersion() != currentDataVersion || data.getCachedGroups() == null) {
+            LOGGER.debug("Refresing groups for mob {}. CachedVer: {}, CurrentVer: {}", mob.getUUID(), data.getCachedDataVersion(), currentDataVersion);
+            List<TraumaGroup> freshGroups = com.example.firefearmod.integration.QuantifiedIntegration.profile("ResolveTraumaGroups", () -> getGroupsForMob(mob));
+            
+            List<ResourceLocation> ids = new ArrayList<>();
+            for (TraumaGroup g : freshGroups) ids.add(g.id());
+            data.setCachedGroups(ids);
+            data.setCachedDataVersion(currentDataVersion);
+            LOGGER.debug("Refreshed groups for mob {}. Found {} groups.", mob.getUUID(), freshGroups.size());
+            return freshGroups;
+        }
+
+        List<ResourceLocation> ids = data.getCachedGroups();
+        List<TraumaGroup> result = new ArrayList<>();
+        for (ResourceLocation id : ids) {
+            TraumaGroup g = GROUPS.get(id);
+            if (g != null) result.add(g);
+        }
+        return result;
     }
 }

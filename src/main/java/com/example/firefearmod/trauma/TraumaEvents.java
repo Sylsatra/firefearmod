@@ -39,7 +39,7 @@ public class TraumaEvents {
         if (data == null) {
             return;
         }
-        List<TraumaGroup> groups = TraumaGroupManager.getGroupsForMob(mob);
+        List<TraumaGroup> groups = TraumaGroupManager.getOrRefreshGroups(mob, data);
         if (groups.isEmpty()) {
             return;
         }
@@ -84,7 +84,7 @@ public class TraumaEvents {
             return;
         }
 
-        List<TraumaGroup> childGroups = TraumaGroupManager.getGroupsForMob(child);
+        List<TraumaGroup> childGroups = TraumaGroupManager.getOrRefreshGroups(child, childData);
         if (childGroups.isEmpty()) {
             return;
         }
@@ -202,6 +202,11 @@ public class TraumaEvents {
             return;
         }
         Level level = victim.level();
+        
+        if (level.getNearestPlayer(victim, 32.0) == null) {
+            return;
+        }
+
         double vertical = radius;
         AABB box = victim.getBoundingBox().inflate(radius, vertical, radius);
         int maxStagesGlobal = ConfigHolder.MAX_TRAUMA_STAGES_PER_GROUP.get();
@@ -217,12 +222,31 @@ public class TraumaEvents {
             if (data == null) {
                 continue;
             }
-            if (!TraumaGroupManager.isMobInGroup(watcher, group.id())) {
+            boolean inGroup = false;
+            if (data.getCachedDataVersion() == TraumaGroupManager.getDataVersion() && data.getCachedGroups() != null) {
+                inGroup = data.getCachedGroups().contains(group.id());
+            } else {
+                inGroup = TraumaGroupManager.isMobInGroup(watcher, group.id());
+            }
+
+            if (!inGroup) {
                 continue;
             }
             int currentStage = data.getStage(group.id());
             if (currentStage == targetStageIndex - 1) {
                 data.setStage(group.id(), targetStageIndex, maxStagesGlobal);
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public static void onAnimalTame(net.minecraftforge.event.entity.living.AnimalTameEvent event) {
+        Mob mob = event.getAnimal();
+        if (mob != null && !mob.level().isClientSide) {
+            ITraumaData data = TraumaCapability.get(mob).orElse(null);
+            if (data != null) {
+                data.setCachedDataVersion(-1);
+                data.setCachedGroups(null);
             }
         }
     }

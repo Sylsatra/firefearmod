@@ -8,6 +8,7 @@ import java.util.List;
 
 public record TraumaGroup(ResourceLocation id,
                           List<FearGroup.MobDefinition> mobs,
+                          List<FearGroup.MobDefinition> blacklist,
                           double defaultWitnessRadius,
                           List<TraumaGroup.TraumaStage> stages,
                           List<TraumaCondition> conditions) {

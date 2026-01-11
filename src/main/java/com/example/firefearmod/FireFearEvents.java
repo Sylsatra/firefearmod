@@ -25,7 +25,7 @@ public class FireFearEvents {
             if (ConfigHolder.INTERGENERATIONAL_TRAUMA_ENABLED.get()) {
                 List<TraumaGroup> traumaGroups = TraumaGroupManager.getGroupsForMob(mob);
                 if (!traumaGroups.isEmpty()) {
-                    TraumaProfile profile = new TraumaProfile(mob, traumaGroups);
+                    TraumaProfile profile = new TraumaProfile(mob);
                     mob.goalSelector.addGoal(0, new FireFearGoal(mob, profile));
                 }
             } else {

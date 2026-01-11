@@ -29,7 +29,7 @@ public class TemptationEvents {
         if (groups.isEmpty()) {
             return;
         }
-        IFearProfile profile = new com.example.firefearmod.trauma.TraumaProfile(mob, groups);
+        IFearProfile profile = new com.example.firefearmod.trauma.TraumaProfile(mob);
 
         boolean shouldSuppress = profile.isTemptedBy(newTarget) || profile.shouldOverrideHostility(newTarget);
         
@@ -61,7 +61,7 @@ public class TemptationEvents {
         if (groups.isEmpty()) {
             return;
         }
-        IFearProfile profile = new com.example.firefearmod.trauma.TraumaProfile(mob, groups);
+        IFearProfile profile = new com.example.firefearmod.trauma.TraumaProfile(mob);
 
         boolean shouldSuppress = profile.isTemptedBy(target) || profile.shouldOverrideHostility(target);
         if (!shouldSuppress) {
