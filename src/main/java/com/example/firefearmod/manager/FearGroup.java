@@ -33,7 +33,8 @@ public record FearGroup(
         List<MobDefinition> blacklist,
         List<FearSourceDefinition> fearedBlocks,
         List<FearSourceDefinition> fearedItems,
-        List<FearedEntityDefinition> fearedEntities
+        List<FearedEntityDefinition> fearedEntities,
+        List<FearSourceDefinition> fearedLights
 ) implements IFearProfile {
 
     public static FearGroup fromConfig(Config config) {
@@ -54,7 +55,9 @@ public record FearGroup(
                 .map(o -> (List<Config>) o)
                 .map(list -> list.stream().map(FearedEntityDefinition::fromConfig).collect(Collectors.toList()))
                 .orElse(List.of());
-        return new FearGroup(groupId, fleeSpeed, searchRadius, mobs, blacklist, fearedBlocks, fearedItems, fearedEntities);
+        List<FearSourceDefinition> fearedLights = ((List<Config>) config.getOptional("feared_lights").orElse(List.of())).stream()
+                .map(FearSourceDefinition::fromConfig).collect(Collectors.toList());
+        return new FearGroup(groupId, fleeSpeed, searchRadius, mobs, blacklist, fearedBlocks, fearedItems, fearedEntities, fearedLights);
     }
 
     public int getMatchScore(Mob mob) {
@@ -238,9 +241,32 @@ public record FearGroup(
         }
     }
 
-    public record FearSourceDefinition(ResourceLocation id, boolean isTag, @Nullable String customName, @Nullable Config states, @Nullable CompoundTag nbt, boolean fearOverride, boolean temptation, boolean mutualVision) {
+    public enum LightMode { ABOVE, BELOW }
+    public enum LightLayer { BLOCK, SKY, ANY }
+
+    public record FearSourceDefinition(ResourceLocation id, boolean isTag, @Nullable String customName, @Nullable Config states, @Nullable CompoundTag nbt, boolean fearOverride, boolean passiveTemptation, boolean activeTemptation, boolean mutualVision, @Nullable LightMode lightMode, int lightThreshold, LightLayer lightLayer) {
         public static FearSourceDefinition fromConfig(Config config) {
-            String raw = (String) config.get("id");
+            String idStr = config.getOptional("id").map(String::valueOf).orElse("");
+            String type = config.getOptional("type").map(String::valueOf).orElse("");
+            
+
+            LightMode lightMode = null;
+            int lightThreshold = 0;
+            LightLayer lightLayer = LightLayer.BLOCK;
+            
+            if ("light".equals(type) || (idStr.isEmpty() && config.getOptional("threshold").isPresent())) {
+                 String modeStr = config.getOptional("mode").map(String::valueOf).orElse("ABOVE");
+                 try { lightMode = LightMode.valueOf(modeStr.toUpperCase(Locale.ROOT)); } catch (Exception e) { lightMode = LightMode.ABOVE; }
+                 
+                 lightThreshold = config.getOptional("threshold").map(o -> ((Number)o).intValue()).orElse(0);
+                 
+                 String layerStr = config.getOptional("layer").map(String::valueOf).orElse("BLOCK");
+                 try { lightLayer = LightLayer.valueOf(layerStr.toUpperCase(Locale.ROOT)); } catch (Exception e) { lightLayer = LightLayer.BLOCK; }
+                 
+                 idStr = "firefearmod:light"; 
+            }
+
+            String raw = idStr;
             boolean isTag = false;
             if (raw.startsWith("#")) {
                 isTag = true;
@@ -255,9 +281,30 @@ public record FearGroup(
                 } catch (Exception e) { throw new IllegalArgumentException("Invalid NBT: " + e.getMessage()); }
             }).orElse(null);
             boolean fearOverride = config.getOptional("fear_override").map(o -> (Boolean) o).orElse(false);
-            boolean temptation = config.getOptional("temptation").map(o -> (Boolean) o).orElse(false);
+            boolean passiveTemptation = config.getOptional("temptation").map(o -> (Boolean) o).orElse(false);
+            boolean activeTemptation = config.getOptional("is_tempted_by").map(o -> (Boolean) o).orElse(false);
             boolean mutualVision = config.getOptional("mutual_vision").map(o -> (Boolean) o).orElse(false);
-            return new FearSourceDefinition(id, isTag, customName, states, nbt, fearOverride, temptation, mutualVision);
+            return new FearSourceDefinition(id, isTag, customName, states, nbt, fearOverride, passiveTemptation, activeTemptation, mutualVision, lightMode, lightThreshold, lightLayer);
+        }
+        
+        public boolean temptation() {
+            return passiveTemptation || activeTemptation;
+        }
+
+        public boolean suppressAggression() {
+             return passiveTemptation;
+        }
+        
+        public boolean matchesLight(int blockLight, int skyLight) {
+            if (lightMode == null) return false;
+            
+            int effectiveLight;
+            if (lightLayer == LightLayer.BLOCK) effectiveLight = blockLight;
+            else if (lightLayer == LightLayer.SKY) effectiveLight = skyLight;
+            else effectiveLight = Math.max(blockLight, skyLight);
+            
+            if (lightMode == LightMode.ABOVE) return effectiveLight > lightThreshold;
+            else return effectiveLight < lightThreshold;
         }
         
         public boolean matches(ResourceLocation targetId, @Nullable BlockState blockState, @Nullable BlockEntity blockEntity, @Nullable ItemStack itemStack) {

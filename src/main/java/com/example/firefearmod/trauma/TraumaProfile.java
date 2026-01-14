@@ -263,6 +263,50 @@ public class TraumaProfile implements IFearProfile {
     }
 
     @Override
+    public boolean isPositionSafeFromLight(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
+        ITraumaData data = TraumaCapability.get(mob).orElse(null);
+        int blockLight = level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, pos);
+        int skyLight = level.getBrightness(net.minecraft.world.level.LightLayer.SKY, pos);
+        
+        for (TraumaGroup group : getGroups()) {
+            if (!areConditionsMet(group)) continue;
+            int stageIndex = getActiveStageIndex(group, data);
+            if (stageIndex < 0) continue;
+            for (int i = 0; i <= stageIndex; i++) {
+                TraumaGroup.TraumaStage stage = group.stages().get(i);
+                for (FearGroup.FearSourceDefinition def : stage.fearedLights()) {
+                    if (def.matchesLight(blockLight, skyLight)) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean shouldOverrideHostility(net.minecraft.core.BlockPos pos) {
+        ITraumaData data = TraumaCapability.get(mob).orElse(null);
+        int blockLight = mob.level().getBrightness(net.minecraft.world.level.LightLayer.BLOCK, pos);
+        int skyLight = mob.level().getBrightness(net.minecraft.world.level.LightLayer.SKY, pos);
+
+        for (TraumaGroup group : getGroups()) {
+            if (!areConditionsMet(group)) continue;
+            int stageIndex = getActiveStageIndex(group, data);
+            if (stageIndex < 0) continue;
+            for (int i = 0; i <= stageIndex; i++) {
+                TraumaGroup.TraumaStage stage = group.stages().get(i);
+                for (FearGroup.FearSourceDefinition def : stage.fearedLights()) {
+                    if (def.matchesLight(blockLight, skyLight) && def.fearOverride()) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
     public boolean isTemptedBy(BlockState blockState, BlockEntity blockEntity) {
         if (com.example.firefearmod.integration.LureIntegration.isLuredByBlock(mob, blockState, blockEntity)) {
            return true;
@@ -326,6 +370,12 @@ public class TraumaProfile implements IFearProfile {
     }
 
     @Override
+    public boolean shouldSuppressAggression(ItemStack stack) {
+        FearGroup.FearSourceDefinition def = findFearedItem(stack);
+        return def != null && def.suppressAggression();
+    }
+
+    @Override
     public boolean shouldOverrideHostility(Entity entity) {
         ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
         if (entityId == null) {
@@ -376,6 +426,32 @@ public class TraumaProfile implements IFearProfile {
                 for (FearGroup.FearedEntityDefinition def : stage.fearedEntities()) {
                     if (def.matches(entityId, entity)) {
                         if (def.source().temptation()) return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean shouldSuppressAggression(Entity entity) {
+        if (entity instanceof net.minecraft.world.entity.LivingEntity living && 
+            com.example.firefearmod.integration.LureIntegration.isLured(mob, living)) {
+            return true;
+        }
+        ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+        if (entityId == null) return false;
+        
+        ITraumaData data = TraumaCapability.get(mob).orElse(null);
+        for (TraumaGroup group : getGroups()) {
+            if (!areConditionsMet(group)) continue;
+            int stageIndex = getActiveStageIndex(group, data);
+            if (stageIndex < 0) continue;
+            for (int i = 0; i <= stageIndex; i++) {
+                TraumaGroup.TraumaStage stage = group.stages().get(i);
+                for (FearGroup.FearedEntityDefinition def : stage.fearedEntities()) {
+                    if (def.matches(entityId, entity)) {
+                        if (def.source().suppressAggression()) return true;
                     }
                 }
             }
@@ -553,6 +629,107 @@ public class TraumaProfile implements IFearProfile {
                  result = speed;
              }
          }
-         return result < 0 ? fleeSpeed() : result;
+        return result < 0 ? fleeSpeed() : result;
+    }
+
+    @Override
+    public int getAllowedSearchRadiusFor(Entity entity) {
+         ITraumaData data = TraumaCapability.get(mob).orElse(null);
+         ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+         int result = -1;
+         
+         for (TraumaGroup group : getGroups()) {
+             if (!areConditionsMet(group)) continue;
+             int stageIndex = getActiveStageIndex(group, data);
+             if (stageIndex < 0) continue;
+             
+             Integer radius = null;
+             if (entityId != null) {
+                 for (int i = 0; i <= stageIndex; i++) {
+                     TraumaGroup.TraumaStage stage = group.stages().get(i);
+                     for (FearGroup.FearedEntityDefinition def : stage.fearedEntities()) {
+                         if (def.matches(entityId, entity)) {
+                             radius = resolveSearchRadius(group, i);
+                             break;
+                         }
+                     }
+                     if (radius == null) {
+                         for (FearGroup.FearSourceDefinition def : stage.fearedBlocks()) {
+                             if (def.matchesEntity(entityId, entity)) {
+                                 radius = resolveSearchRadius(group, i);
+                                 break;
+                             }
+                         }
+                     }
+                     if (radius != null) break;
+                 }
+             }
+             
+             if (radius != null && radius > result) {
+                 result = radius;
+             }
+         }
+         return result < 0 ? searchRadius() : result;
+    }
+
+    @Override
+    public int getAllowedSearchRadiusFor(BlockState state) {
+         ITraumaData data = TraumaCapability.get(mob).orElse(null);
+         ResourceLocation blockId = ForgeRegistries.BLOCKS.getKey(state.getBlock());
+         if (blockId == null) return searchRadius();
+         int result = -1;
+ 
+         for (TraumaGroup group : getGroups()) {
+             if (!areConditionsMet(group)) continue;
+             int stageIndex = getActiveStageIndex(group, data);
+             if (stageIndex < 0) continue;
+ 
+             Integer radius = null;
+             for (int i = 0; i <= stageIndex; i++) {
+                 TraumaGroup.TraumaStage stage = group.stages().get(i);
+                 for (FearGroup.FearSourceDefinition def : stage.fearedBlocks()) {
+                      if (def.matches(blockId, state, null, null)) {
+                          radius = resolveSearchRadius(group, i);
+                          break;
+                      }
+                 }
+                 if (radius != null) break;
+             }
+              if (radius != null && radius > result) {
+                 result = radius;
+             }
+         }
+         return result < 0 ? searchRadius() : result;
+    }
+
+    @Override
+    public int getAllowedSearchRadiusFor(ItemStack stack) {
+          ITraumaData data = TraumaCapability.get(mob).orElse(null);
+          if (stack.isEmpty()) return searchRadius();
+          ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
+          if (itemId == null) return searchRadius();
+          int result = -1;
+  
+         for (TraumaGroup group : getGroups()) {
+             if (!areConditionsMet(group)) continue;
+             int stageIndex = getActiveStageIndex(group, data);
+             if (stageIndex < 0) continue;
+  
+             Integer radius = null;
+             for (int i = 0; i <= stageIndex; i++) {
+                 TraumaGroup.TraumaStage stage = group.stages().get(i);
+                 for (FearGroup.FearSourceDefinition def : stage.fearedItems()) {
+                      if (def.matches(itemId, null, null, stack)) {
+                          radius = resolveSearchRadius(group, i);
+                          break;
+                      }
+                 }
+                 if (radius != null) break;
+             }
+              if (radius != null && radius > result) {
+                 result = radius;
+             }
+         }
+         return result < 0 ? searchRadius() : result;
     }
 }

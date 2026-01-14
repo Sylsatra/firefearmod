@@ -1,0 +1,21 @@
+{
+  "group_id": "guide_test:test_light_fear",
+  "mobs": [
+    {
+      "id": "minecraft:villager"
+    }
+  ],
+  "stages": [
+    {
+      "fears": [
+        {
+          "type": "light",
+          "mode": "BELOW",
+          "threshold": 7,
+          "layer": "BLOCK",
+          "fear_override": true
+        }
+      ]
+    }
+  ]
+}

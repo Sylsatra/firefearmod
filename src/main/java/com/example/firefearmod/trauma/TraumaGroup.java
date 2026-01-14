@@ -42,6 +42,7 @@ public record TraumaGroup(ResourceLocation id,
                               List<FearGroup.FearSourceDefinition> fearedBlocks,
                               List<FearGroup.FearSourceDefinition> fearedItems,
                               List<FearGroup.FearedEntityDefinition> fearedEntities,
+                              List<FearGroup.FearSourceDefinition> fearedLights,
                               List<TraumaRequirement> requirements) {
     }
 }

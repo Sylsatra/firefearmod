@@ -100,9 +100,10 @@ Fears are defined in the `"fears"` list within a stage.
 - **id**: Registration ID (e.g., `minecraft:fire`). Use `#name` for tags (e.g., `#minecraft:campfires`).
 - **custom_name**: Match by display name.
 - **nbt**: Match by specific NBT tags using [Advanced NBT Matching](#advanced-nbt-matching).
-- **fear_override**: If `true`, the mob flees even if it is currently aggressive/attacking.
-- **mutual_vision**: (Entities/Held Items only) Mob only flees if it sees you AND you are looking at it.
-
+- **fear_override**: (Boolean) If true, the mob will try to flee even if it is currently attacking this source. Useful for things that are scary but also hated.
+- **temptation**: (Boolean) If true, this source attracts the mob aggressively. The mob will NOT flee and will NOT attack.
+- **is_tempted_by**: (Boolean) If true, this source attracts the mob weakly. The mob will NOT flee, but CAN still attack it.
+- **mutual_vision**: (Boolean) If true, the mob only fears this source if the source also sees the mob (e.g. Endermen).
 #### Block Specific:
 - **states**: Match specific block properties.
   ```json
@@ -112,7 +113,26 @@ Fears are defined in the `"fears"` list within a stage.
 #### Entity Specific:
 - **visibility_mode**: 
   - `LOOK_BASED`: Must have line-of-sight and be within FOV.
+  - `LOOK_BASED`: Must have line-of-sight and be within FOV.
   - `ALWAYS`: Can sense the threat through walls/behind them.
+
+### Light Level Fear
+You can make mobs fear specific light levels (e.g., darkness or sunlight).
+```json
+{
+  "type": "light",
+  "mode": "ABOVE",
+  "threshold": 12,
+  "layer": "BLOCK",
+  "fear_override": true
+}
+```
+- **mode**: `ABOVE` (fear light > threshold) or `BELOW` (fear light < threshold).
+- **threshold**: The light level (0-15).
+- **layer**: 
+  - `BLOCK`: Only block light (torches, etc.).
+  - `SKY`: Only sky light (sun).
+  - `ANY`: Maximum of block and sky light.
 
 ### Trauma Requirements
 Requirements define *what happens* to trigger fear in a stage.

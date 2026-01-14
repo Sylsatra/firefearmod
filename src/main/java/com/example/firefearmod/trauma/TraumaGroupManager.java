@@ -134,13 +134,14 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
             List<FearGroup.FearSourceDefinition> fearedBlocks = new ArrayList<>();
             List<FearGroup.FearSourceDefinition> fearedItems = new ArrayList<>();
             List<FearGroup.FearedEntityDefinition> fearedEntities = new ArrayList<>();
+            List<FearGroup.FearSourceDefinition> fearedLights = new ArrayList<>();
             List<TraumaGroup.TraumaRequirement> requirements = new ArrayList<>();
 
-            parseFears(obj, groupId, i, fearedBlocks, fearedItems, fearedEntities);
+            parseFears(obj, groupId, i, fearedBlocks, fearedItems, fearedEntities, fearedLights);
             parseRequirements(obj, groupId, i, requirements);
 
             result.add(new TraumaGroup.TraumaStage(i, fleeSpeed, searchRadius, witnessRadius,
-                    fearedBlocks, fearedItems, fearedEntities, requirements));
+                    fearedBlocks, fearedItems, fearedEntities, fearedLights, requirements));
         }
         if (limit < array.size()) {
             LOGGER.warn("Trauma group '{}' has {} stages but only the first {} are used due to maxTraumaStagesPerGroup", groupId, array.size(), limit);
@@ -151,7 +152,8 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
     private static void parseFears(JsonObject stageObj, ResourceLocation groupId, int stageIndex,
                                    List<FearGroup.FearSourceDefinition> fearedBlocks,
                                    List<FearGroup.FearSourceDefinition> fearedItems,
-                                   List<FearGroup.FearedEntityDefinition> fearedEntities) {
+                                   List<FearGroup.FearedEntityDefinition> fearedEntities,
+                                   List<FearGroup.FearSourceDefinition> fearedLights) {
         if (!stageObj.has("fears")) {
             return;
         }
@@ -177,6 +179,12 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
                     FearGroup.FearedEntityDefinition def = parseFearedEntityDefinition(obj, groupId, stageIndex);
                     if (def != null) {
                         fearedEntities.add(def);
+                    }
+                }
+                case "light" -> {
+                    FearGroup.FearSourceDefinition def = parseFearSourceDefinition(obj, groupId, stageIndex, "light");
+                    if (def != null) {
+                        fearedLights.add(def);
                     }
                 }
                 default -> LOGGER.warn("Unknown fear type '{}' in trauma group '{}' stage {}", type, groupId, stageIndex);
@@ -205,8 +213,8 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
 
         String customName = obj.has("custom_name") ? GsonHelper.getAsString(obj, "custom_name") : null;
         boolean fearOverride = obj.has("fear_override") && GsonHelper.getAsBoolean(obj, "fear_override");
-        boolean temptation = (obj.has("temptation") && GsonHelper.getAsBoolean(obj, "temptation")) ||
-                             (obj.has("is_tempted_by") && GsonHelper.getAsBoolean(obj, "is_tempted_by"));
+        boolean passiveTemptation = obj.has("temptation") && GsonHelper.getAsBoolean(obj, "temptation");
+        boolean activeTemptation = obj.has("is_tempted_by") && GsonHelper.getAsBoolean(obj, "is_tempted_by");
         boolean mutualVision = obj.has("mutual_vision") && GsonHelper.getAsBoolean(obj, "mutual_vision");
 
         Config statesCfg = null;
@@ -228,7 +236,7 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
             }
         }
 
-        return new FearGroup.FearSourceDefinition(id, isTag, customName, statesCfg, nbt, fearOverride, temptation, mutualVision);
+        return new FearGroup.FearSourceDefinition(id, isTag, customName, statesCfg, nbt, fearOverride, passiveTemptation, activeTemptation, mutualVision, null, 0, FearGroup.LightLayer.BLOCK);
     }
 
     @Nullable
@@ -269,7 +277,7 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
             mode = IFearProfile.VisibilityMode.LOOK_BASED;
         }
 
-        FearGroup.FearSourceDefinition src = new FearGroup.FearSourceDefinition(id, isTag, customName, null, nbt, false, false, false);
+        FearGroup.FearSourceDefinition src = new FearGroup.FearSourceDefinition(id, isTag, customName, null, nbt, false, false, false, false, null, 0, FearGroup.LightLayer.BLOCK);
         return new FearGroup.FearedEntityDefinition(src, fearOverride, mode);
     }
 

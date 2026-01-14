@@ -1,0 +1,24 @@
+{
+  "group_id": "guide_test:test_aggresive_temptation",
+  "mobs": [
+    {
+      "id": "minecraft:wolf"
+    }
+  ],
+  "stages": [
+    {
+      "fears": [
+        {
+          "type": "item",
+          "id": "minecraft:stick",
+          "temptation": true
+        },
+        {
+          "type": "entity",
+          "id": "minecraft:player",
+          "visibility_mode": "LOOK_BASED"
+        }
+      ]
+    }
+  ]
+}

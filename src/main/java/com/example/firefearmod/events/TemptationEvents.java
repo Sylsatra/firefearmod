@@ -31,10 +31,10 @@ public class TemptationEvents {
         }
         IFearProfile profile = new com.example.firefearmod.trauma.TraumaProfile(mob);
 
-        boolean shouldSuppress = profile.isTemptedBy(newTarget) || profile.shouldOverrideHostility(newTarget);
+        boolean shouldSuppress = profile.shouldSuppressAggression(newTarget) || profile.shouldOverrideHostility(newTarget);
         
         if (!shouldSuppress) {
-             shouldSuppress = profile.isTemptedBy(newTarget.getMainHandItem()) || profile.isTemptedBy(newTarget.getOffhandItem()) ||
+             shouldSuppress = profile.shouldSuppressAggression(newTarget.getMainHandItem()) || profile.shouldSuppressAggression(newTarget.getOffhandItem()) ||
                               profile.shouldOverrideHostility(newTarget.getMainHandItem()) || profile.shouldOverrideHostility(newTarget.getOffhandItem());
         }
 
@@ -63,9 +63,9 @@ public class TemptationEvents {
         }
         IFearProfile profile = new com.example.firefearmod.trauma.TraumaProfile(mob);
 
-        boolean shouldSuppress = profile.isTemptedBy(target) || profile.shouldOverrideHostility(target);
+        boolean shouldSuppress = profile.shouldSuppressAggression(target) || profile.shouldOverrideHostility(target);
         if (!shouldSuppress) {
-            shouldSuppress = profile.isTemptedBy(target.getMainHandItem()) || profile.isTemptedBy(target.getOffhandItem()) ||
+            shouldSuppress = profile.shouldSuppressAggression(target.getMainHandItem()) || profile.shouldSuppressAggression(target.getOffhandItem()) ||
                              profile.shouldOverrideHostility(target.getMainHandItem()) || profile.shouldOverrideHostility(target.getOffhandItem());
         }
 

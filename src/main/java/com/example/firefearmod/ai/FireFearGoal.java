@@ -229,6 +229,22 @@ public class FireFearGoal extends Goal {
     }
 
     private Vec3 getFleePos() {
+
+        if (dangerPos != null && dangerPos.distanceToSqr(mob.position()) < 1.0) {
+
+             if (mob instanceof PathfinderMob pathfinderMob) {
+                 for (int i = 0; i < 10; i++) {
+                     Vec3 candidate = DefaultRandomPos.getPos(pathfinderMob, (int) Math.ceil(fearGroup.searchRadius()), 4);
+                     if (candidate != null) {
+                         BlockPos pos = BlockPos.containing(candidate);
+                         if (isPositionSafeFromLight(pos)) {
+                             return candidate;
+                         }
+                     }
+                 }
+             }
+        }
+    
         Vec3 baseDirection = fleeDirection;
         if (baseDirection.lengthSqr() < 1.0e-4 && dangerPos != null) {
             baseDirection = mob.position().subtract(dangerPos).normalize();
@@ -253,6 +269,39 @@ public class FireFearGoal extends Goal {
             }
         }
         return new Vec3(desired.x, mob.getY(), desired.z);
+    }
+
+    private boolean isPositionSafeFromLight(BlockPos pos) {
+        if (fearGroup instanceof com.example.firefearmod.trauma.TraumaProfile tp) {
+
+
+
+
+           
+
+
+
+
+           
+
+
+           
+
+
+
+           
+
+
+           
+
+
+           
+
+           
+
+           return fearGroup.isPositionSafeFromLight(mob.level(), pos);
+        }
+        return true;
     }
 
     private void updateFleePath(boolean force) {
@@ -299,7 +348,26 @@ public class FireFearGoal extends Goal {
         int radius = fearGroup.searchRadius();
         boolean foundBlock = false;
 
+
         boolean skipBlockScan = false;
+        
+
+        if (!fearGroup.isPositionSafeFromLight(level, mob.blockPosition())) {
+
+
+             bestPriority = 0.0;
+             closestThreatPos = mob.position();
+             closestThreatEntity = null;
+             anyOverrideActive = fearGroup.shouldOverrideHostility(mob.blockPosition());
+             
+
+
+             
+             threatCount++;
+             speedAccumulator += fearGroup.fleeSpeed();
+             speedCount++;
+        }
+
         if (lastScanPos != null && mob.position().distanceToSqr(lastScanPos) < 0.01 && !lastScanFoundBlockDanger) {
             skipBlockScan = true;
         }
@@ -311,6 +379,11 @@ public class FireFearGoal extends Goal {
                 if (!blockState.isAir()) {
                     BlockEntity blockEntity = blockState.hasBlockEntity() ? level.getBlockEntity(checkPos) : null;
                     
+                    int allowedRadius = fearGroup.getAllowedSearchRadiusFor(blockState);
+                    if (mob.position().distanceToSqr(Vec3.atCenterOf(checkPos)) > allowedRadius * allowedRadius) {
+                        continue;
+                    }
+
                     boolean isTempted = fearGroup.isTemptedBy(blockState, blockEntity);
                     boolean isOverride = fearGroup.shouldOverrideHostility(blockState, blockEntity);
                     
@@ -379,6 +452,16 @@ public class FireFearGoal extends Goal {
                 boolean isOverride = fearGroup.shouldOverrideHostility(entity) || isOverrideByHeldItem;
                 if (isOverride) {
                     anyOverrideActive = true;
+                }
+                
+
+                if (mob.getTarget() == entity && !isOverride) {
+                    continue;
+                }
+
+                int allowedRadius = fearGroup.getAllowedSearchRadiusFor(entity);
+                if (mob.distanceToSqr(entity) > allowedRadius * allowedRadius) {
+                    continue;
                 }
 
                 boolean isFeared = fearGroup.isFearedEntity(entity);
@@ -454,6 +537,16 @@ public class FireFearGoal extends Goal {
             boolean isOverride = fearGroup.shouldOverrideHostility(player) || isOverrideByHeldItem;
             if (isOverride) {
                 anyOverrideActive = true;
+            }
+
+
+            if (mob.getTarget() == player && !isOverride) {
+                 continue;
+            }
+
+            int allowedRadius = fearGroup.getAllowedSearchRadiusFor(player);
+            if (mob.distanceToSqr(player) > allowedRadius * allowedRadius) {
+                continue;
             }
 
             boolean isFeared = fearGroup.isFearedEntity(player);
