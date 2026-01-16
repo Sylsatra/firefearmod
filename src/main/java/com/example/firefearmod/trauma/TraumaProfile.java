@@ -649,14 +649,16 @@ public class TraumaProfile implements IFearProfile {
                      TraumaGroup.TraumaStage stage = group.stages().get(i);
                      for (FearGroup.FearedEntityDefinition def : stage.fearedEntities()) {
                          if (def.matches(entityId, entity)) {
-                             radius = resolveSearchRadius(group, i);
+                             Integer custom = def.source().searchRadius();
+                             radius = (custom != null) ? custom : resolveSearchRadius(group, i);
                              break;
                          }
                      }
                      if (radius == null) {
                          for (FearGroup.FearSourceDefinition def : stage.fearedBlocks()) {
                              if (def.matchesEntity(entityId, entity)) {
-                                 radius = resolveSearchRadius(group, i);
+                                 Integer custom = def.searchRadius();
+                                 radius = (custom != null) ? custom : resolveSearchRadius(group, i);
                                  break;
                              }
                          }
@@ -689,7 +691,8 @@ public class TraumaProfile implements IFearProfile {
                  TraumaGroup.TraumaStage stage = group.stages().get(i);
                  for (FearGroup.FearSourceDefinition def : stage.fearedBlocks()) {
                       if (def.matches(blockId, state, null, null)) {
-                          radius = resolveSearchRadius(group, i);
+                          Integer custom = def.searchRadius();
+                          radius = (custom != null) ? custom : resolveSearchRadius(group, i);
                           break;
                       }
                  }
@@ -720,7 +723,8 @@ public class TraumaProfile implements IFearProfile {
                  TraumaGroup.TraumaStage stage = group.stages().get(i);
                  for (FearGroup.FearSourceDefinition def : stage.fearedItems()) {
                       if (def.matches(itemId, null, null, stack)) {
-                          radius = resolveSearchRadius(group, i);
+                          Integer custom = def.searchRadius();
+                          radius = (custom != null) ? custom : resolveSearchRadius(group, i);
                           break;
                       }
                  }

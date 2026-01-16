@@ -244,7 +244,7 @@ public record FearGroup(
     public enum LightMode { ABOVE, BELOW }
     public enum LightLayer { BLOCK, SKY, ANY }
 
-    public record FearSourceDefinition(ResourceLocation id, boolean isTag, @Nullable String customName, @Nullable Config states, @Nullable CompoundTag nbt, boolean fearOverride, boolean passiveTemptation, boolean activeTemptation, boolean mutualVision, @Nullable LightMode lightMode, int lightThreshold, LightLayer lightLayer) {
+    public record FearSourceDefinition(ResourceLocation id, boolean isTag, @Nullable String customName, @Nullable Config states, @Nullable CompoundTag nbt, boolean fearOverride, boolean passiveTemptation, boolean activeTemptation, boolean mutualVision, @Nullable Integer searchRadius, @Nullable LightMode lightMode, int lightThreshold, LightLayer lightLayer) {
         public static FearSourceDefinition fromConfig(Config config) {
             String idStr = config.getOptional("id").map(String::valueOf).orElse("");
             String type = config.getOptional("type").map(String::valueOf).orElse("");
@@ -284,7 +284,8 @@ public record FearGroup(
             boolean passiveTemptation = config.getOptional("temptation").map(o -> (Boolean) o).orElse(false);
             boolean activeTemptation = config.getOptional("is_tempted_by").map(o -> (Boolean) o).orElse(false);
             boolean mutualVision = config.getOptional("mutual_vision").map(o -> (Boolean) o).orElse(false);
-            return new FearSourceDefinition(id, isTag, customName, states, nbt, fearOverride, passiveTemptation, activeTemptation, mutualVision, lightMode, lightThreshold, lightLayer);
+            Integer searchRadius = config.getOptional("search_radius").map(o -> ((Number)o).intValue()).orElse(null);
+            return new FearSourceDefinition(id, isTag, customName, states, nbt, fearOverride, passiveTemptation, activeTemptation, mutualVision, searchRadius, lightMode, lightThreshold, lightLayer);
         }
         
         public boolean temptation() {

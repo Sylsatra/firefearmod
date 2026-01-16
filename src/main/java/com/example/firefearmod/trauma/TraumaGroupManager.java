@@ -216,6 +216,7 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
         boolean passiveTemptation = obj.has("temptation") && GsonHelper.getAsBoolean(obj, "temptation");
         boolean activeTemptation = obj.has("is_tempted_by") && GsonHelper.getAsBoolean(obj, "is_tempted_by");
         boolean mutualVision = obj.has("mutual_vision") && GsonHelper.getAsBoolean(obj, "mutual_vision");
+        Integer searchRadius = obj.has("search_radius") ? GsonHelper.getAsInt(obj, "search_radius") : null;
 
         Config statesCfg = null;
         if (obj.has("states")) {
@@ -236,7 +237,21 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
             }
         }
 
-        return new FearGroup.FearSourceDefinition(id, isTag, customName, statesCfg, nbt, fearOverride, passiveTemptation, activeTemptation, mutualVision, null, 0, FearGroup.LightLayer.BLOCK);
+        FearGroup.LightMode lightMode = null;
+        int lightThreshold = 0;
+        FearGroup.LightLayer lightLayer = FearGroup.LightLayer.BLOCK;
+
+        if (obj.has("threshold") || "light".equals(context)) {
+             String modeStr = obj.has("mode") ? GsonHelper.getAsString(obj, "mode") : "ABOVE";
+             try { lightMode = FearGroup.LightMode.valueOf(modeStr.toUpperCase(Locale.ROOT)); } catch (Exception e) { lightMode = FearGroup.LightMode.ABOVE; }
+             
+             lightThreshold = obj.has("threshold") ? GsonHelper.getAsInt(obj, "threshold") : 0;
+             
+             String layerStr = obj.has("layer") ? GsonHelper.getAsString(obj, "layer") : "BLOCK";
+             try { lightLayer = FearGroup.LightLayer.valueOf(layerStr.toUpperCase(Locale.ROOT)); } catch (Exception e) { lightLayer = FearGroup.LightLayer.BLOCK; }
+        }
+
+        return new FearGroup.FearSourceDefinition(id, isTag, customName, statesCfg, nbt, fearOverride, passiveTemptation, activeTemptation, mutualVision, searchRadius, lightMode, lightThreshold, lightLayer);
     }
 
     @Nullable
@@ -276,8 +291,10 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
         } catch (IllegalArgumentException e) {
             mode = IFearProfile.VisibilityMode.LOOK_BASED;
         }
+        
+        Integer searchRadius = obj.has("search_radius") ? GsonHelper.getAsInt(obj, "search_radius") : null;
 
-        FearGroup.FearSourceDefinition src = new FearGroup.FearSourceDefinition(id, isTag, customName, null, nbt, false, false, false, false, null, 0, FearGroup.LightLayer.BLOCK);
+        FearGroup.FearSourceDefinition src = new FearGroup.FearSourceDefinition(id, isTag, customName, null, nbt, false, false, false, false, searchRadius, null, 0, FearGroup.LightLayer.BLOCK);
         return new FearGroup.FearedEntityDefinition(src, fearOverride, mode);
     }
 
