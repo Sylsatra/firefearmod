@@ -29,6 +29,7 @@ public record FearGroup(
         String groupId,
         double fleeSpeed,
         int searchRadius,
+        int fleeDistance,
         List<MobDefinition> mobs,
         List<MobDefinition> blacklist,
         List<FearSourceDefinition> fearedBlocks,
@@ -41,6 +42,7 @@ public record FearGroup(
         String groupId = config.get("group_id");
         double fleeSpeed = config.getOptional("flee_speed").map(o -> ((Number) o).doubleValue()).orElse(1.2);
         int searchRadius = config.getOptional("search_radius").map(o -> ((Number) o).intValue()).orElse(8);
+        int fleeDistance = config.getOptional("flee_distance").map(o -> ((Number) o).intValue()).orElse(searchRadius);
         List<MobDefinition> mobs = ((List<Config>) config.get("mobs")).stream()
                 .map(MobDefinition::fromConfig).collect(Collectors.toList());
         List<MobDefinition> blacklist = config.getOptional("blacklist")
@@ -57,7 +59,7 @@ public record FearGroup(
                 .orElse(List.of());
         List<FearSourceDefinition> fearedLights = ((List<Config>) config.getOptional("feared_lights").orElse(List.of())).stream()
                 .map(FearSourceDefinition::fromConfig).collect(Collectors.toList());
-        return new FearGroup(groupId, fleeSpeed, searchRadius, mobs, blacklist, fearedBlocks, fearedItems, fearedEntities, fearedLights);
+        return new FearGroup(groupId, fleeSpeed, searchRadius, fleeDistance, mobs, blacklist, fearedBlocks, fearedItems, fearedEntities, fearedLights);
     }
 
     public int getMatchScore(Mob mob) {
@@ -180,6 +182,72 @@ public record FearGroup(
         return def != null && def.mutualVision();
     }
 
+    @Override
+    public int getAllowedSearchRadiusFor(Entity entity) {
+        ResourceLocation id = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+        if (id == null) return searchRadius();
+        
+        for (FearedEntityDefinition def : fearedEntities()) {
+            if (def.matches(id, entity)) {
+                return def.source().searchRadius() != null ? def.source().searchRadius() : searchRadius();
+            }
+        }
+        return searchRadius();
+    }
+
+    @Override
+    public int getAllowedSearchRadiusFor(BlockState state) {
+        ResourceLocation id = ForgeRegistries.BLOCKS.getKey(state.getBlock());
+        if (id == null) return searchRadius();
+
+        for (FearSourceDefinition def : fearedBlocks()) {
+            if (def.matches(id, state, null, null)) {
+                return def.searchRadius() != null ? def.searchRadius() : searchRadius();
+            }
+        }
+         return searchRadius();
+    }
+
+    @Override
+    public int getAllowedSearchRadiusFor(ItemStack stack) {
+        ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (id == null) return searchRadius();
+
+        for (FearSourceDefinition def : fearedItems()) {
+            if (def.matches(id, null, null, stack)) {
+                return def.searchRadius() != null ? def.searchRadius() : searchRadius();
+            }
+        }
+        return searchRadius();
+    }
+
+    @Override
+    public boolean isPositionSafeFromLight(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
+        return !FearGroupManager.isLightFearEnabledForGroup(this) || 
+               FearGroupManager.getLightFearForGroup(this).isSafe(level, pos);
+    }
+
+    @Override
+    public boolean hasLightFear() {
+        return FearGroupManager.isLightFearEnabledForGroup(this);
+    }
+
+    @Override
+    public boolean shouldOverrideHostility(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
+        if (!FearGroupManager.isLightFearEnabledForGroup(this)) return false;
+        
+        int blockLight = level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, pos);
+        int skyLight = level.getBrightness(net.minecraft.world.level.LightLayer.SKY, pos) - level.getSkyDarken();
+        if (skyLight < 0) skyLight = 0;
+        
+        for (FearSourceDefinition def : fearedLights) {
+            if (def.matchesLight(blockLight, skyLight) && def.fearOverride()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean isBlacklisted(Mob mob) {
         ResourceLocation mobId = ForgeRegistries.ENTITY_TYPES.getKey(mob.getType());
         if (mobId == null) return false;
@@ -197,7 +265,8 @@ public record FearGroup(
         }
 
         public static MobDefinition fromConfig(Config config) {
-            ResourceLocation id = new ResourceLocation((String)config.get("id"));
+            ResourceLocation id = ResourceLocation.tryParse((String)config.get("id"));
+            if (id == null) throw new IllegalArgumentException("Invalid ResourceLocation: " + config.get("id"));
             String customName = config.getOptional("custom_name").map(String::valueOf).orElse(null);
             CompoundTag nbt = config.getOptional("nbt").map(nbtStr -> {
                 try {
@@ -272,7 +341,9 @@ public record FearGroup(
                 isTag = true;
                 raw = raw.substring(1);
             }
-            ResourceLocation id = new ResourceLocation(raw);
+            ResourceLocation id = ResourceLocation.tryParse(raw);
+            if (id == null) id = new ResourceLocation("minecraft", "air"); 
+
             String customName = config.getOptional("custom_name").map(String::valueOf).orElse(null);
             Config states = config.getOptional("states").map(o -> (Config) o).orElse(null);
             CompoundTag nbt = config.getOptional("nbt").map(nbtStr -> {

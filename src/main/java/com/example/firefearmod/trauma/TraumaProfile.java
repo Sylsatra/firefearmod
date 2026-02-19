@@ -78,6 +78,37 @@ public class TraumaProfile implements IFearProfile {
         return result;
     }
 
+    @Override
+    public int fleeDistance() {
+        ITraumaData data = TraumaCapability.get(mob).orElse(null);
+        int result = searchRadius(); 
+        boolean found = false;
+        
+        for (TraumaGroup group : getGroups()) {
+            if (!areConditionsMet(group)) continue;
+            int stageIndex = getActiveStageIndex(group, data);
+            if (stageIndex < 0) continue;
+            
+            Integer v = resolveFleeDistance(group, stageIndex);
+            if (v != null) {
+                if (!found || v > result) {
+                    result = v;
+                    found = true;
+                }
+            }
+        }
+        return result;
+    }
+
+    @Nullable
+    private Integer resolveFleeDistance(TraumaGroup group, int stageIndex) {
+        for (int i = stageIndex; i >= 0; i--) {
+            Integer v = group.stages().get(i).fleeDistance();
+            if (v != null) return v;
+        }
+        return null;
+    }
+
     @Nullable
     @Override
     public FearGroup.FearSourceDefinition findFearedBlock(BlockState blockState, @Nullable BlockEntity blockEntity) {
@@ -266,7 +297,8 @@ public class TraumaProfile implements IFearProfile {
     public boolean isPositionSafeFromLight(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
         int blockLight = level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, pos);
-        int skyLight = level.getBrightness(net.minecraft.world.level.LightLayer.SKY, pos);
+        int skyLight = level.getBrightness(net.minecraft.world.level.LightLayer.SKY, pos) - level.getSkyDarken();
+        if (skyLight < 0) skyLight = 0;
         
         for (TraumaGroup group : getGroups()) {
             if (!areConditionsMet(group)) continue;
@@ -285,10 +317,11 @@ public class TraumaProfile implements IFearProfile {
     }
 
     @Override
-    public boolean shouldOverrideHostility(net.minecraft.core.BlockPos pos) {
+    public boolean shouldOverrideHostility(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) {
         ITraumaData data = TraumaCapability.get(mob).orElse(null);
-        int blockLight = mob.level().getBrightness(net.minecraft.world.level.LightLayer.BLOCK, pos);
-        int skyLight = mob.level().getBrightness(net.minecraft.world.level.LightLayer.SKY, pos);
+        int blockLight = level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, pos);
+        int skyLight = level.getBrightness(net.minecraft.world.level.LightLayer.SKY, pos) - level.getSkyDarken();
+        if (skyLight < 0) skyLight = 0;
 
         for (TraumaGroup group : getGroups()) {
             if (!areConditionsMet(group)) continue;
@@ -735,5 +768,17 @@ public class TraumaProfile implements IFearProfile {
              }
          }
          return result < 0 ? searchRadius() : result;
+    }
+    @Override
+    public boolean hasLightFear() {
+        ITraumaData data = TraumaCapability.get(mob).orElse(null);
+        for (TraumaGroup group : getGroups()) {
+            int stageIndex = getActiveStageIndex(group, data);
+            if (stageIndex < 0) continue;
+            for (int i = 0; i <= stageIndex; i++) {
+                if (!group.stages().get(i).fearedLights().isEmpty()) return true;
+            }
+        }
+        return false;
     }
 }

@@ -73,15 +73,7 @@ public class FireFearGoal extends Goal {
         scanCooldown = ConfigHolder.SCAN_COOLDOWN_TICKS.get();
         
         Player nearest = mob.level().getNearestPlayer(mob, fearGroup.searchRadius());
-        if (nearest != null) {
-             boolean tempted = fearGroup.isTemptedBy(nearest) || fearGroup.isTemptedBy(nearest.getMainHandItem()) || fearGroup.isTemptedBy(nearest.getOffhandItem());
-             if (tempted) {
-                 boolean override = fearGroup.shouldOverrideHostility(nearest) || fearGroup.shouldOverrideHostility(nearest.getMainHandItem()) || fearGroup.shouldOverrideHostility(nearest.getOffhandItem());
-                 if (!override) {
-                     return false;
-                 }
-             }
-        }
+
 
         dangerPos = findNearestThreat(nearest);
         return dangerPos != null;
@@ -253,7 +245,7 @@ public class FireFearGoal extends Goal {
             baseDirection = new Vec3(mob.getRandom().nextDouble() - 0.5, 0, mob.getRandom().nextDouble() - 0.5).normalize();
         }
 
-        double fleeDistance = Math.max(6.0, fearGroup.searchRadius());
+        double fleeDistance = fearGroup.fleeDistance();
         Vec3 desired = mob.position().add(baseDirection.scale(fleeDistance));
         if (mob instanceof PathfinderMob pathfinderMob) {
             if (dangerClusterCenter != null) {
@@ -358,7 +350,7 @@ public class FireFearGoal extends Goal {
              bestPriority = 0.0;
              closestThreatPos = mob.position();
              closestThreatEntity = null;
-             anyOverrideActive = fearGroup.shouldOverrideHostility(mob.blockPosition());
+             anyOverrideActive = fearGroup.shouldOverrideHostility(level, mob.blockPosition());
              
 
 

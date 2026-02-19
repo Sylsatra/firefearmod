@@ -10,14 +10,13 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
 @Mod("firefearmod")
 public class FireFearMod {
-    private static final String MOD_VERSION = ModLoadingContext.get().getActiveContainer().getModInfo().getVersion().toString();
+    private static final String MOD_VERSION = net.minecraftforge.fml.ModList.get().getModFileById("firefearmod").versionString();
 
     public FireFearMod() {
         ConfigHolder.setTargetSchemaVersion(MOD_VERSION);
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onConfigLoad);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, ConfigHolder.SPEC, "firefearmod-common.toml");
         
-        // Optional Quantified-API integration
         com.example.firefearmod.integration.QuantifiedIntegration.init();
     }
 

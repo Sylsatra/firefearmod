@@ -36,7 +36,7 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
     private static final String FOLDER = "trauma_groups";
     private static int dataVersion = 0;
 
-    private static final Map<ResourceLocation, TraumaGroup> GROUPS = new HashMap<>();
+    private static volatile Map<ResourceLocation, TraumaGroup> groups = Collections.emptyMap();
 
     public static int getDataVersion() {
         return dataVersion;
@@ -48,7 +48,7 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
 
     @Override
     protected void apply(Map<ResourceLocation, JsonElement> jsons, ResourceManager resourceManager, ProfilerFiller profiler) {
-        GROUPS.clear();
+        Map<ResourceLocation, TraumaGroup> newGroups = new HashMap<>();
         dataVersion++;
         LOGGER.info("TraumaGroupManager applying changes. New dataVersion: {}", dataVersion);
         int maxStages = ConfigHolder.MAX_TRAUMA_STAGES_PER_GROUP.get();
@@ -71,14 +71,17 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
                 }
 
                 TraumaGroup group = new TraumaGroup(groupId, mobs, blacklist, defaultWitnessRadius, stages, conditions);
-                GROUPS.put(groupId, group);
+                newGroups.put(groupId, group);
             } catch (Exception e) {
                 LOGGER.error("Failed to parse trauma group JSON {}: {}", fileId, e.getMessage());
             }
         }
-        LOGGER.info("Loaded {} trauma groups.", GROUPS.size());
+        
+        groups = Collections.unmodifiableMap(newGroups);
+        LOGGER.info("Loaded {} trauma groups.", groups.size());
     }
 
+    
     private static List<FearGroup.MobDefinition> parseMobs(JsonObject root, ResourceLocation groupId, String memberName) {
         List<FearGroup.MobDefinition> result = new ArrayList<>();
         if (!root.has(memberName)) {
@@ -130,6 +133,7 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
             JsonObject obj = GsonHelper.convertToJsonObject(element, "stage");
             Double fleeSpeed = obj.has("flee_speed") ? GsonHelper.getAsDouble(obj, "flee_speed") : null;
             Integer searchRadius = obj.has("search_radius") ? GsonHelper.getAsInt(obj, "search_radius") : null;
+            Integer fleeDistance = obj.has("flee_distance") ? GsonHelper.getAsInt(obj, "flee_distance") : null;
             Double witnessRadius = obj.has("witness_radius") ? GsonHelper.getAsDouble(obj, "witness_radius") : null;
             List<FearGroup.FearSourceDefinition> fearedBlocks = new ArrayList<>();
             List<FearGroup.FearSourceDefinition> fearedItems = new ArrayList<>();
@@ -140,7 +144,7 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
             parseFears(obj, groupId, i, fearedBlocks, fearedItems, fearedEntities, fearedLights);
             parseRequirements(obj, groupId, i, requirements);
 
-            result.add(new TraumaGroup.TraumaStage(i, fleeSpeed, searchRadius, witnessRadius,
+            result.add(new TraumaGroup.TraumaStage(i, fleeSpeed, searchRadius, fleeDistance, witnessRadius,
                     fearedBlocks, fearedItems, fearedEntities, fearedLights, requirements));
         }
         if (limit < array.size()) {
@@ -197,7 +201,16 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
                                                                             ResourceLocation groupId,
                                                                             int stageIndex,
                                                                             String context) {
-        String rawId = GsonHelper.getAsString(obj, "id");
+        String rawId = obj.has("id") ? GsonHelper.getAsString(obj, "id") : "";
+        if (rawId.isEmpty()) {
+            if ("light".equals(context)) {
+                rawId = "firefearmod:light";
+            } else {
+                LOGGER.error("Missing 'id' in trauma group '{}' stage {} context {}", groupId, stageIndex, context);
+                return null;
+            }
+        }
+
         boolean isTag = false;
         if (rawId.startsWith("#")) {
             isTag = true;
@@ -382,11 +395,11 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
     }
 
     public static Collection<TraumaGroup> getAllGroups() {
-        return Collections.unmodifiableCollection(GROUPS.values());
+        return Collections.unmodifiableCollection(groups.values());
     }
 
     public static TraumaGroup getGroup(ResourceLocation id) {
-        return GROUPS.get(id);
+        return groups.get(id);
     }
 
     public static List<TraumaGroup> getGroupsForMob(Mob mob) {
@@ -395,7 +408,9 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
             return List.of();
         }
         List<TraumaGroup> result = new ArrayList<>();
-        for (TraumaGroup group : GROUPS.values()) {
+        Map<ResourceLocation, TraumaGroup> currentGroups = groups;
+        
+        for (TraumaGroup group : currentGroups.values()) {
             int bestScore = -1;
             
             boolean blacklisted = false;
@@ -421,7 +436,7 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
     }
 
     public static boolean isMobInGroup(Mob mob, ResourceLocation groupId) {
-        TraumaGroup group = GROUPS.get(groupId);
+        TraumaGroup group = groups.get(groupId);
         if (group == null) {
             return false;
         }
@@ -461,8 +476,10 @@ public class TraumaGroupManager extends SimpleJsonResourceReloadListener {
 
         List<ResourceLocation> ids = data.getCachedGroups();
         List<TraumaGroup> result = new ArrayList<>();
+        Map<ResourceLocation, TraumaGroup> currentGroups = groups;
+        
         for (ResourceLocation id : ids) {
-            TraumaGroup g = GROUPS.get(id);
+            TraumaGroup g = currentGroups.get(id);
             if (g != null) result.add(g);
         }
         return result;

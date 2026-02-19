@@ -9,6 +9,7 @@
         {
             "flee_speed": 1.0,
             "search_radius": 12,
+            "flee_distance": 8,
             "fears": [
                 {
                     "type": "entity",

@@ -17,6 +17,8 @@ public interface IFearProfile {
 
     int searchRadius();
 
+    default int fleeDistance() { return searchRadius(); }
+
     @Nullable
     FearGroup.FearSourceDefinition findFearedBlock(BlockState blockState, @Nullable BlockEntity blockEntity);
 
@@ -54,5 +56,6 @@ public interface IFearProfile {
     boolean isMutualVision(BlockState state, @Nullable BlockEntity be);
 
     default boolean isPositionSafeFromLight(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) { return true; }
-    default boolean shouldOverrideHostility(net.minecraft.core.BlockPos pos) { return false; }
+    default boolean shouldOverrideHostility(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos) { return false; }
+    default boolean hasLightFear() { return false; }
 }

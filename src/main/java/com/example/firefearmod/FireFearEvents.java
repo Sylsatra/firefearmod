@@ -26,12 +26,14 @@ public class FireFearEvents {
                 List<TraumaGroup> traumaGroups = TraumaGroupManager.getGroupsForMob(mob);
                 if (!traumaGroups.isEmpty()) {
                     TraumaProfile profile = new TraumaProfile(mob);
+                    if (profile.hasLightFear()) {
+                        mob.goalSelector.addGoal(4, new LightFearGoal(mob, profile));
+                    }
                     mob.goalSelector.addGoal(0, new FireFearGoal(mob, profile));
                 }
             } else {
-                Optional<FearGroup> groupOpt = FearGroupManager.getGroupForMob(mob);
-                groupOpt.ifPresent(group -> {
-                    if (FearGroupManager.isLightFearEnabledForGroup(group)) {
+                FearGroupManager.getGroupForMob(mob).ifPresent(group -> {
+                    if (group.hasLightFear()) {
                         mob.goalSelector.addGoal(4, new LightFearGoal(mob, group));
                     }
                     mob.goalSelector.addGoal(0, new FireFearGoal(mob, group));

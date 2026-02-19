@@ -30,10 +30,14 @@ public record LightFear(boolean enabled, Mode mode, int threshold, Layer layer, 
     private static int clamp(int v, int min, int max) { return Math.max(min, Math.min(max, v)); }
 
     public int sampleBrightness(Level level, BlockPos pos) {
+        int blockLight = level.getBrightness(LightLayer.BLOCK, pos);
+        int skyLight = level.getBrightness(LightLayer.SKY, pos) - level.getSkyDarken();
+        if (skyLight < 0) skyLight = 0;
+
         return switch (layer) {
-            case BLOCK -> level.getBrightness(LightLayer.BLOCK, pos);
-            case SKY -> level.getBrightness(LightLayer.SKY, pos);
-            case COMBINED -> level.getMaxLocalRawBrightness(pos);
+            case BLOCK -> blockLight;
+            case SKY -> skyLight;
+            case COMBINED -> Math.max(blockLight, skyLight);
         };
     }
 
