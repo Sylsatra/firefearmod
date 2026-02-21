@@ -666,6 +666,107 @@ public class TraumaProfile implements IFearProfile {
     }
 
     @Override
+    public int getFleeDistanceFor(Entity entity) {
+         ITraumaData data = TraumaCapability.get(mob).orElse(null);
+         ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());
+         int result = -1;
+         
+         for (TraumaGroup group : getGroups()) {
+             if (!areConditionsMet(group)) continue;
+             int stageIndex = getActiveStageIndex(group, data);
+             if (stageIndex < 0) continue;
+             
+             Integer distance = null;
+             if (entityId != null) {
+                 for (int i = 0; i <= stageIndex; i++) {
+                     TraumaGroup.TraumaStage stage = group.stages().get(i);
+                     for (FearGroup.FearedEntityDefinition def : stage.fearedEntities()) {
+                         if (def.matches(entityId, entity)) {
+                             distance = resolveFleeDistance(group, i);
+                             break;
+                         }
+                     }
+                     if (distance == null) {
+                         for (FearGroup.FearSourceDefinition def : stage.fearedBlocks()) {
+                             if (def.matchesEntity(entityId, entity)) {
+                                 distance = resolveFleeDistance(group, i);
+                                 break;
+                             }
+                         }
+                     }
+                     if (distance != null) break;
+                 }
+             }
+             
+             if (distance != null && (result < 0 || distance > result)) {
+                 result = distance;
+             }
+         }
+         return result < 0 ? fleeDistance() : result;
+    }
+
+    @Override
+    public int getFleeDistanceFor(BlockState state) {
+         ITraumaData data = TraumaCapability.get(mob).orElse(null);
+         ResourceLocation blockId = ForgeRegistries.BLOCKS.getKey(state.getBlock());
+         if (blockId == null) return fleeDistance();
+         int result = -1;
+ 
+         for (TraumaGroup group : getGroups()) {
+             if (!areConditionsMet(group)) continue;
+             int stageIndex = getActiveStageIndex(group, data);
+             if (stageIndex < 0) continue;
+ 
+             Integer distance = null;
+             for (int i = 0; i <= stageIndex; i++) {
+                 TraumaGroup.TraumaStage stage = group.stages().get(i);
+                 for (FearGroup.FearSourceDefinition def : stage.fearedBlocks()) {
+                      if (def.matches(blockId, state, null, null)) {
+                          distance = resolveFleeDistance(group, i);
+                          break;
+                      }
+                 }
+                 if (distance != null) break;
+             }
+              if (distance != null && (result < 0 || distance > result)) {
+                 result = distance;
+             }
+         }
+         return result < 0 ? fleeDistance() : result;
+    }
+
+    @Override
+    public int getFleeDistanceFor(ItemStack stack) {
+          ITraumaData data = TraumaCapability.get(mob).orElse(null);
+          if (stack.isEmpty()) return fleeDistance();
+          ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
+          if (itemId == null) return fleeDistance();
+          int result = -1;
+ 
+         for (TraumaGroup group : getGroups()) {
+             if (!areConditionsMet(group)) continue;
+             int stageIndex = getActiveStageIndex(group, data);
+             if (stageIndex < 0) continue;
+ 
+             Integer distance = null;
+             for (int i = 0; i <= stageIndex; i++) {
+                 TraumaGroup.TraumaStage stage = group.stages().get(i);
+                 for (FearGroup.FearSourceDefinition def : stage.fearedItems()) {
+                      if (def.matches(itemId, null, null, stack)) {
+                          distance = resolveFleeDistance(group, i);
+                          break;
+                      }
+                 }
+                 if (distance != null) break;
+             }
+              if (distance != null && (result < 0 || distance > result)) {
+                 result = distance;
+             }
+         }
+        return result < 0 ? fleeDistance() : result;
+    }
+
+    @Override
     public int getAllowedSearchRadiusFor(Entity entity) {
          ITraumaData data = TraumaCapability.get(mob).orElse(null);
          ResourceLocation entityId = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType());

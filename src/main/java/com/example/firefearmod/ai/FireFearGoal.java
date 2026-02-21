@@ -43,6 +43,7 @@ public class FireFearGoal extends Goal {
     private boolean targetingSuppressed = false;
     private IFearProfile.VisibilityMode dangerVisibilityMode = IFearProfile.VisibilityMode.LOOK_BASED;
     private double activeFleeSpeed = 1.2;
+    private int activeFleeDistance = 8;
     private Entity dangerEntity;
     private Vec3 lastScanPos = null;
     private boolean lastScanFoundBlockDanger = false;
@@ -74,7 +75,7 @@ public class FireFearGoal extends Goal {
         
         Player nearest = mob.level().getNearestPlayer(mob, fearGroup.searchRadius());
 
-
+        this.activeFleeDistance = fearGroup.fleeDistance();
         dangerPos = findNearestThreat(nearest);
         return dangerPos != null;
     }
@@ -110,7 +111,7 @@ public class FireFearGoal extends Goal {
             }
         }
 
-        double stopFleeDistSq = (fearGroup.searchRadius() + 2) * (fearGroup.searchRadius() + 2);
+        double stopFleeDistSq = (Math.max(fearGroup.searchRadius(), this.activeFleeDistance) + 2) * (Math.max(fearGroup.searchRadius(), this.activeFleeDistance) + 2);
         if (mob.position().distanceToSqr(dangerPos) >= stopFleeDistSq) {
             return false;
         }
@@ -245,7 +246,7 @@ public class FireFearGoal extends Goal {
             baseDirection = new Vec3(mob.getRandom().nextDouble() - 0.5, 0, mob.getRandom().nextDouble() - 0.5).normalize();
         }
 
-        double fleeDistance = fearGroup.fleeDistance();
+        double fleeDistance = this.activeFleeDistance;
         Vec3 desired = mob.position().add(baseDirection.scale(fleeDistance));
         if (mob instanceof PathfinderMob pathfinderMob) {
             if (dangerClusterCenter != null) {
@@ -333,11 +334,14 @@ public class FireFearGoal extends Goal {
         Vec3 clusterSum = Vec3.ZERO;
         int threatCount = 0;
         IFearProfile.VisibilityMode bestMode = IFearProfile.VisibilityMode.LOOK_BASED;
-        double speedAccumulator = 0;
-        int speedCount = 0;
+        double bestSpeed = fearGroup.fleeSpeed();
+        int bestDistance = fearGroup.fleeDistance();
         boolean anyOverrideActive = false;
 
         int radius = fearGroup.searchRadius();
+        if (this.dangerPos != null) {
+            radius = Math.max(radius, this.activeFleeDistance);
+        }
         boolean foundBlock = false;
 
 
@@ -352,12 +356,10 @@ public class FireFearGoal extends Goal {
              closestThreatEntity = null;
              anyOverrideActive = fearGroup.shouldOverrideHostility(level, mob.blockPosition());
              
-
-
+             bestSpeed = fearGroup.fleeSpeed();
+             bestDistance = fearGroup.fleeDistance();
              
              threatCount++;
-             speedAccumulator += fearGroup.fleeSpeed();
-             speedCount++;
         }
 
         if (lastScanPos != null && mob.position().distanceToSqr(lastScanPos) < 0.01 && !lastScanFoundBlockDanger) {
@@ -372,6 +374,11 @@ public class FireFearGoal extends Goal {
                     BlockEntity blockEntity = blockState.hasBlockEntity() ? level.getBlockEntity(checkPos) : null;
                     
                     int allowedRadius = fearGroup.getAllowedSearchRadiusFor(blockState);
+                    if (this.dangerPos != null && this.dangerEntity == null) {
+                        if (checkPos.equals(BlockPos.containing(this.dangerPos))) {
+                            allowedRadius = Math.max(allowedRadius, this.activeFleeDistance);
+                        }
+                    }
                     if (mob.position().distanceToSqr(Vec3.atCenterOf(checkPos)) > allowedRadius * allowedRadius) {
                         continue;
                     }
@@ -394,11 +401,11 @@ public class FireFearGoal extends Goal {
                                 bestPriority = distSqr;
                                 closestThreatPos = threatPos;
                                 closestThreatEntity = null;
+                                bestSpeed = fearGroup.getFleeSpeedFor(blockState);
+                                bestDistance = fearGroup.getFleeDistanceFor(blockState);
                             }
                             clusterSum = clusterSum.add(threatPos);
                             threatCount++;
-                            speedAccumulator += fearGroup.getFleeSpeedFor(blockState);
-                            speedCount++;
                             foundBlock = true;
                         }
                     }
@@ -452,6 +459,9 @@ public class FireFearGoal extends Goal {
                 }
 
                 int allowedRadius = fearGroup.getAllowedSearchRadiusFor(entity);
+                if (entity == this.dangerEntity) {
+                    allowedRadius = Math.max(allowedRadius, this.activeFleeDistance);
+                }
                 if (mob.distanceToSqr(entity) > allowedRadius * allowedRadius) {
                     continue;
                 }
@@ -490,20 +500,22 @@ public class FireFearGoal extends Goal {
                     closestThreatPos = center;
                     closestThreatEntity = entity;
                     bestMode = mode;
+                    
+                    if (isFeared) {
+                        bestSpeed = fearGroup.getFleeSpeedFor(entity);
+                        bestDistance = fearGroup.getFleeDistanceFor(entity);
+                    } else if (heldFear != null && entity instanceof net.minecraft.world.entity.LivingEntity living) {
+                        ItemStack stack = living.getMainHandItem();
+                        if (fearGroup.findFearedItem(stack) == null) stack = living.getOffhandItem();
+                        bestSpeed = fearGroup.getFleeSpeedFor(stack);
+                        bestDistance = fearGroup.getFleeDistanceFor(stack);
+                    } else {
+                        bestSpeed = fearGroup.fleeSpeed();
+                        bestDistance = fearGroup.fleeDistance();
+                    }
                 }
                 clusterSum = clusterSum.add(center);
                 threatCount++;
-                
-                if (isFeared) {
-                    speedAccumulator += fearGroup.getFleeSpeedFor(entity);
-                } else if (heldFear != null && entity instanceof net.minecraft.world.entity.LivingEntity living) {
-                    ItemStack stack = living.getMainHandItem();
-                    if (fearGroup.findFearedItem(stack) == null) stack = living.getOffhandItem();
-                    speedAccumulator += fearGroup.getFleeSpeedFor(stack);
-                } else {
-                    speedAccumulator += fearGroup.fleeSpeed();
-                }
-                speedCount++;
             }
         }
 
@@ -537,6 +549,9 @@ public class FireFearGoal extends Goal {
             }
 
             int allowedRadius = fearGroup.getAllowedSearchRadiusFor(player);
+            if (player == this.dangerEntity) {
+                allowedRadius = Math.max(allowedRadius, this.activeFleeDistance);
+            }
             if (mob.distanceToSqr(player) > allowedRadius * allowedRadius) {
                 continue;
             }
@@ -573,27 +588,30 @@ public class FireFearGoal extends Goal {
                      closestThreatPos = player.getEyePosition();
                      closestThreatEntity = player;
                      bestMode = mode;
+                     
+                     if (isFeared) {
+                         bestSpeed = fearGroup.getFleeSpeedFor(player);
+                         bestDistance = fearGroup.getFleeDistanceFor(player);
+                     } else if (heldFear != null) {
+                         ItemStack stack = player.getMainHandItem();
+                         if (fearGroup.findFearedItem(stack) == null) stack = player.getOffhandItem();
+                         bestSpeed = fearGroup.getFleeSpeedFor(stack);
+                         bestDistance = fearGroup.getFleeDistanceFor(stack);
+                     } else {
+                         bestSpeed = fearGroup.fleeSpeed();
+                         bestDistance = fearGroup.fleeDistance();
+                     }
                  }
                  Vec3 center = player.position().add(0.0, player.getBbHeight() * 0.5, 0.0);
                  clusterSum = clusterSum.add(center);
                  threatCount++;
-                 
-                 if (isFeared) {
-                     speedAccumulator += fearGroup.getFleeSpeedFor(player);
-                 } else if (heldFear != null) {
-                     ItemStack stack = player.getMainHandItem();
-                     if (fearGroup.findFearedItem(stack) == null) stack = player.getOffhandItem();
-                     speedAccumulator += fearGroup.getFleeSpeedFor(stack);
-                 } else {
-                     speedAccumulator += fearGroup.fleeSpeed();
-                 }
-                 speedCount++;
             }
         }
 
         if (threatCount > 0) {
             dangerClusterCenter = clusterSum.scale(1.0 / threatCount);
-            this.activeFleeSpeed = speedCount > 0 ? (speedAccumulator / speedCount) : fearGroup.fleeSpeed();
+            this.activeFleeSpeed = bestSpeed;
+            this.activeFleeDistance = bestDistance;
             
             Vec3 away = mob.position().subtract(dangerClusterCenter);
             Vec3 newDir = Vec3.ZERO;

@@ -46,6 +46,10 @@ public interface IFearProfile {
     default double getFleeSpeedFor(BlockState state) { return fleeSpeed(); }
     default double getFleeSpeedFor(ItemStack stack) { return fleeSpeed(); }
 
+    default int getFleeDistanceFor(Entity entity) { return fleeDistance(); }
+    default int getFleeDistanceFor(BlockState state) { return fleeDistance(); }
+    default int getFleeDistanceFor(ItemStack stack) { return fleeDistance(); }
+
     default int getAllowedSearchRadiusFor(Entity entity) { return searchRadius(); }
     default int getAllowedSearchRadiusFor(BlockState state) { return searchRadius(); }
     default int getAllowedSearchRadiusFor(ItemStack stack) { return searchRadius(); }
